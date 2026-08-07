@@ -1,0 +1,39 @@
+name: Feature proposal
+description: Propose an outcome for Rumpun Community
+title: "proposal: "
+labels: [proposal, triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: Who has this problem, and why does it matter?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Desired outcome
+      description: Describe behavior without prescribing a stack.
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Product-boundary fit
+      description: Explain why this is genealogy rather than proprietary family-archive functionality.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and trade-offs
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing proposals.
+          required: true
+        - label: This proposal does not assume an unapproved technology stack.
+          required: true

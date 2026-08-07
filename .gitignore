@@ -1,0 +1,18 @@
+# OS and editor artifacts
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Local secrets and environment overrides
+.env
+.env.*
+!.env.example
+
+# Temporary output
+.tmp/
+tmp/
+coverage/
