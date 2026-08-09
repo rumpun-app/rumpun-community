@@ -9,15 +9,15 @@
 
 Rumpun Community has completed enough foundation work to choose an initial implementation architecture. The project needs a stack that is approachable for contributors, practical to self-host, explicit about frontend and backend responsibilities, and capable of preserving genealogical data over long periods.
 
-Rumpun Community is a focused family-tree application. Its purpose is to record people, model family relationships, navigate family trees, preserve genealogical facts and their supporting sources, and exchange genealogy data through GEDCOM.
+The initial product concept is a community-maintained family-tree application. The first implementation will therefore concentrate on people, family relationships, tree navigation, genealogical facts and sources, and GEDCOM data exchange. This is a starting direction for building a coherent core, not a permanent restriction on what the community may propose or develop later.
 
-GEDCOM import and export are core product behavior, not optional integrations. The architecture must support incomplete or ambiguous records, actionable diagnostics, repeatable imports, standards-aware exports, and explicit handling of information that cannot be mapped without loss.
+GEDCOM import and export are core product behavior. The architecture must support incomplete or ambiguous records, actionable diagnostics, repeatable imports, standards-aware exports, and explicit handling of information that cannot be mapped without loss.
 
 The first implementation also needs a repository structure that keeps coordinated changes easy while preserving a real application boundary between the browser-facing frontend and backend API.
 
 ## Decision drivers
 
-- Keep the product narrowly focused on family-tree and genealogy workflows.
+- Deliver a coherent family-tree foundation before expanding the application.
 - Make GEDCOM import, export, validation, and diagnostics first-class capabilities.
 - Represent incomplete, uncertain, conflicting, and source-backed genealogy claims without inventing certainty.
 - Use a familiar, contributor-friendly TypeScript web stack.
@@ -27,35 +27,25 @@ The first implementation also needs a repository structure that keeps coordinate
 - Preserve data portability and avoid dependence on mandatory hosted services.
 - Support accessibility, localization, Unicode names, historical dates, and varied family structures.
 - Allow frontend, API, domain, and interoperability code to evolve atomically.
-- Keep the core small and defer optional infrastructure until demonstrated by real requirements.
+- Keep the initial architecture simple while leaving future direction to the community decision process.
 
-## Product boundary
+## Initial product direction
 
-The selected architecture serves a **family-tree and genealogy application only**.
-
-### In scope
+The first delivery phase establishes a dependable family-tree core:
 
 - people and identity records, including alternate names and uncertain attributes
 - explicitly typed family relationships, including biological, adoptive, foster, guardian, spouse, and partner relationships
 - families and multi-generation ancestor and descendant navigation
 - genealogical facts and events such as birth, death, marriage, residence, occupation, and education
 - places, sources, repositories, citations, notes, and confidence metadata
-- supporting media attached to genealogical evidence, subject to a later storage ADR
+- supporting media associated with genealogy records, subject to a later storage ADR
 - search, filters, validation, duplicate detection, and change history
-- collaboration required to maintain a shared family tree, including invitations, roles, and edit review
+- collaboration needed to maintain shared trees, including invitations, roles, and edit review
 - localization, accessibility, self-hosting, backup, restore, and documented migrations
 - GEDCOM import, export, mapping diagnostics, interoperability fixtures, and round-trip testing
-- documented extension points whose primary purpose is genealogy interoperability
+- documented extension points for community integrations
 
-### Out of scope
-
-- general-purpose social networking, messaging, or community feeds
-- household finance, chores, calendars, health records, and other family-management tools
-- generic content management, customer relationship management, or digital asset management
-- features whose primary purpose is not building, validating, navigating, or exchanging a family tree
-- undocumented interoperability that weakens the canonical genealogy model
-
-A proposed capability belongs in this repository only when its primary value is representing family relationships, genealogical evidence, data exchange, or operation of the family-tree system. Ambiguous proposals require product-boundary review before implementation.
+This list determines implementation order, not the final reach of Rumpun Community. New capabilities may be proposed through normal community governance. Additions that materially change the architecture, data model, operating requirements, or maintenance burden require their own ADR and must not compromise the reliability or portability of the existing family-tree core.
 
 ## Options considered
 
@@ -67,7 +57,7 @@ A single Next.js application could provide UI, route handlers, server actions, a
 
 **Disadvantages:** weakens the frontend/backend boundary, encourages domain rules to spread across UI-oriented handlers, complicates independent API testing, and couples GEDCOM processing to the frontend framework lifecycle.
 
-Rejected. Next.js remains the frontend, but it is not the canonical genealogy backend.
+Rejected. Next.js remains the frontend, but it is not the canonical application backend.
 
 ### 2. Separate frontend and backend repositories
 
@@ -95,7 +85,7 @@ Candidates include NestJS, Fastify, a non-JavaScript backend, a document databas
 
 **Advantages:** alternatives may offer more built-in structure, higher throughput, or graph-native traversal.
 
-**Disadvantages:** they add contributor or operational complexity without a validated requirement. A graph database does not replace provenance-aware domain modeling and complicates conventional backups and migrations.
+**Disadvantages:** they add contributor or operational complexity without a validated initial requirement. A graph database does not replace provenance-aware domain modeling and complicates conventional backups and migrations.
 
 Rejected for the initial implementation. Reconsideration requires measurements and a migration case.
 
@@ -110,7 +100,7 @@ Adopt a modular monolith with two separately deployable applications in one mono
 - **Primary database:** PostgreSQL
 - **Repository model:** one Git repository with separate frontend and backend folders plus narrowly scoped shared packages
 
-The initial system is not microservices. Genealogy capabilities remain modules inside one backend deployment and one PostgreSQL database. Extraction requires operational or scaling evidence and a separate ADR.
+The initial system is not microservices. Capabilities remain modules inside one backend deployment and one PostgreSQL database. Extraction requires operational or scaling evidence and a separate ADR.
 
 ### Monorepo layout
 
@@ -124,7 +114,7 @@ The initial system is not microservices. Genealogy capabilities remain modules i
 │   ├── genealogy/           # framework-neutral domain primitives
 │   ├── gedcom/              # parser, mapper, exporter, fixtures, diagnostics
 │   ├── config/              # shared lint, TypeScript, and test configuration
-│   └── test-fixtures/       # synthetic genealogy datasets
+│   └── test-fixtures/       # synthetic datasets
 ├── db/
 │   ├── migrations/          # ordered PostgreSQL migrations
 │   └── seeds/               # synthetic development data only
@@ -148,14 +138,14 @@ Next.js owns:
 - communication with the documented backend API
 - safe handling of browser-visible session state
 
-Frontend validation is not an authorization or integrity boundary. The frontend must not access PostgreSQL directly, embed privileged credentials, or contain the only implementation of genealogy rules.
+Frontend validation is not an authorization or integrity boundary. The frontend must not access PostgreSQL directly, embed privileged credentials, or contain the only implementation of domain rules.
 
 ### Backend responsibilities
 
 Express.js is the canonical application API and owns:
 
 - authentication integration and authorization enforcement
-- genealogy domain rules and validation
+- domain rules and validation
 - transaction boundaries and persistence
 - source, citation, provenance, and change-history integrity
 - GEDCOM import/export orchestration and diagnostics
@@ -169,9 +159,9 @@ The API style and versioning policy require a follow-up ADR. All external input 
 
 ### PostgreSQL responsibilities
 
-PostgreSQL is the authoritative transactional store for genealogy records and application metadata.
+PostgreSQL is the authoritative transactional store for application and genealogy data.
 
-The model must:
+The initial model must:
 
 - use stable identifiers independent of names and GEDCOM cross-reference identifiers
 - represent varied family relationships without assuming one universal structure
@@ -225,7 +215,7 @@ Small bounded jobs may initially run in the API process. Large-dataset productio
 
 ### Security and privacy baseline
 
-This is a conventional server-side architecture. The implementation must include:
+The implementation must include:
 
 - least-privilege database credentials
 - secrets supplied outside source control
@@ -247,7 +237,7 @@ A supported installation consists conceptually of:
 - the Express API application
 - PostgreSQL
 - an optional operator-supplied reverse proxy
-- optional object storage only after a media-storage ADR
+- optional object storage after a media-storage ADR
 
 Deployment must not require a proprietary hosted platform. Examples should favor reproducible containers and standard environment configuration, while exact orchestration remains deferred.
 
@@ -275,6 +265,14 @@ CI must include:
 
 Performance tests must cover representative traversal and GEDCOM datasets before compatibility or scale claims are published.
 
+## Community evolution
+
+The architecture establishes a reliable starting point without freezing the project's future. Community proposals may add capabilities, packages, modules, or integrations through the project's governance process.
+
+A proposal needs a new ADR when it introduces a new persistent service, changes a public contract, materially alters the data model, increases self-hosting requirements, creates a new trust boundary, or imposes substantial long-term maintenance cost. Evaluation should cover user value, contributor capacity, compatibility, migration, security, privacy, accessibility, operations, and data portability.
+
+This mechanism protects architectural coherence while keeping product direction open to community ownership.
+
 ## Consequences
 
 ### Positive
@@ -285,7 +283,7 @@ Performance tests must cover representative traversal and GEDCOM datasets before
 - PostgreSQL provides mature transactions, constraints, recursive queries, migrations, and backup tooling.
 - GEDCOM has a defined architectural home and cannot become an afterthought.
 - A modular monolith keeps deployment understandable while preserving extraction seams.
-- The scope test limits feature creep beyond family-tree needs.
+- The community retains the ability to evolve the product through explicit decisions.
 
 ### Negative
 
@@ -299,13 +297,13 @@ Performance tests must cover representative traversal and GEDCOM datasets before
 ### Risks and mitigations
 
 - **Domain logic leaks into UI or routes:** enforce module boundaries, thin routes, and backend integration tests.
-- **The monorepo becomes fragmented:** keep one backend deployment and require an ADR before adding services.
+- **The monorepo becomes fragmented:** keep one backend deployment initially and require an ADR before adding services.
 - **The model becomes an oversimplified parent-child graph:** test varied relationships, conflicting claims, sources, citations, and international cases.
 - **GEDCOM processing silently loses data:** preserve original values where feasible and require diagnostics plus round-trip fixtures.
 - **Imports exhaust memory or CPU:** stream parsing, enforce limits, benchmark representative datasets, and add workers only through a follow-up ADR.
 - **Framework churn creates costly upgrades:** pin supported versions, automate dependency review, and avoid unstable features without justification.
 - **Database features create lock-in:** prefer standard PostgreSQL capabilities, document extensions, and maintain complete exports.
-- **Feature creep weakens the family-tree focus:** apply the product-boundary test during issue and pull-request review.
+- **Uncoordinated expansion destabilizes the core:** require architectural review for changes with system-wide consequences, without treating the initial feature set as a permanent product limit.
 
 ### Migration implications
 
@@ -332,13 +330,13 @@ This ADR does not select:
 - observability vendor
 - exact GEDCOM versions and extension policy
 
-Each choice must preserve self-hostability, data portability, the family-tree boundary, and the application boundaries defined here.
+Each choice must preserve self-hostability, data portability, and the application boundaries defined here.
 
 ## Validation
 
 Before acceptance, reviewers must verify that:
 
-- the scope is limited to family-tree and genealogy capabilities
+- the initial family-tree direction is clear without being framed as a permanent community restriction
 - the options satisfy `docs/ARCHITECTURE_PRINCIPLES.md`
 - the proposed stack can run locally using documented open-source dependencies
 - GEDCOM portability and failure behavior are treated as core architecture
@@ -353,6 +351,6 @@ Validate the decision with a thin vertical slice that:
 6. applies migrations to a clean installation and the previous test schema
 7. documents local setup, backup, restore, and failure recovery
 
-Revisit this ADR when representative workloads fail agreed targets, deployment blocks practical self-hosting, modular-monolith boundaries fail, PostgreSQL cannot support required genealogy behavior reasonably, a core framework reaches end of support, or the family-tree product boundary materially changes.
+Revisit this ADR when representative workloads fail agreed targets, deployment blocks practical self-hosting, modular-monolith boundaries fail, PostgreSQL cannot support required behavior reasonably, a core framework reaches end of support, or community-approved product evolution changes the architectural requirements.
 
 Any revisit must include measurements, migration impact, portability consequences, and a rollback or transition plan.
