@@ -1,0 +1,2487 @@
+openapi: 3.1.0
+info:
+  title: Rumpun Community API
+  version: 0.1.0
+  summary: Initial HTTP contract for a single-family Rumpun Community deployment.
+  description: |
+    Contract-first API for the independent Rumpun Community genealogy product.
+
+    Core constraints:
+    - one deployment owns exactly one top-level family tree;
+    - browser authentication uses an opaque server-side session cookie;
+    - every unsafe browser request requires a session-bound CSRF header;
+    - Express authenticates and enforces OPA authorization decisions;
+    - PostgreSQL is authoritative for structured state;
+    - S3-compatible storage contains private object bytes only;
+    - Redis is disposable and never affects this contract's correctness;
+    - account identity is separate from genealogy person identity;
+    - unknown, approximate, disputed, and source-backed claims are first-class.
+
+    This contract intentionally has no tree collection, tree creation, tree switch,
+    bearer-token login, public object URL, Redis endpoint, or client-supplied role.
+  license:
+    name: AGPL-3.0-only
+    identifier: AGPL-3.0-only
+servers:
+  - url: /api/v1
+    description: Same-site API behind the supported reverse proxy
+tags:
+  - name: System
+  - name: Bootstrap
+  - name: Authentication
+  - name: Sessions
+  - name: Invitations
+  - name: Tree
+  - name: People
+  - name: Relationships
+  - name: Sources
+  - name: Citations
+  - name: Media
+  - name: GEDCOM
+security:
+  - sessionCookie: []
+paths:
+  /health/live:
+    get:
+      tags: [System]
+      operationId: getLiveness
+      security: []
+      responses:
+        '200':
+          description: Process is alive.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /health/ready:
+    get:
+      tags: [System]
+      operationId: getReadiness
+      security: []
+      responses:
+        '200':
+          description: Core dependencies and the expected OPA policy revision are ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Readiness'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /bootstrap/status:
+    get:
+      tags: [Bootstrap]
+      operationId: getBootstrapStatus
+      security: []
+      responses:
+        '200':
+          description: Whether first-administrator bootstrap is available.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BootstrapStatus'
+  /bootstrap/admin:
+    post:
+      tags: [Bootstrap]
+      operationId: createFirstAdministrator
+      security: []
+      description: Atomically creates the only first administrator and initializes the singleton tree.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BootstrapAdminRequest'
+      responses:
+        '201':
+          description: First administrator and singleton tree created. The session cookie is issued.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedSession'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/csrf:
+    get:
+      tags: [Authentication]
+      operationId: getCsrfToken
+      security: []
+      responses:
+        '200':
+          description: Returns a short-lived CSRF token bound to the pre-auth or authenticated session context.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CsrfToken'
+  /auth/login:
+    post:
+      tags: [Authentication]
+      operationId: login
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Authenticated. Any pre-authentication session identifier is replaced.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedSession'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: Invalid credentials. The response does not reveal whether the account exists.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      operationId: logout
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: Current session revoked and cookie cleared. Idempotent.
+          headers:
+            Set-Cookie:
+              schema:
+                type: string
+                example: __Host-rumpun_session=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /auth/me:
+    get:
+      tags: [Authentication]
+      operationId: getCurrentAccount
+      responses:
+        '200':
+          description: Current account and active singleton-tree membership.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrentAccount'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /auth/reauthenticate:
+    post:
+      tags: [Authentication]
+      operationId: reauthenticate
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReauthenticateRequest'
+      responses:
+        '200':
+          description: Session rotated with recent-authentication assurance.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/password:
+    put:
+      tags: [Authentication]
+      operationId: changePassword
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '204':
+          description: Password changed, security version advanced, and other sessions revoked.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/RecentAuthenticationRequired'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/recovery/request:
+    post:
+      tags: [Authentication]
+      operationId: requestPasswordRecovery
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoveryRequest'
+      responses:
+        '202':
+          description: Generic accepted response regardless of account existence.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Accepted'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /auth/recovery/complete:
+    post:
+      tags: [Authentication]
+      operationId: completePasswordRecovery
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecoveryCompleteRequest'
+      responses:
+        '200':
+          description: Password reset, previous sessions revoked, and replacement session issued.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedSession'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '410':
+          $ref: '#/components/responses/Gone'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+  /sessions:
+    get:
+      tags: [Sessions]
+      operationId: listSessions
+      responses:
+        '200':
+          description: Privacy-minimized active session list for the current account.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    maxItems: 50
+                    items:
+                      $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /sessions/{sessionId}:
+    delete:
+      tags: [Sessions]
+      operationId: revokeSession
+      parameters:
+        - $ref: '#/components/parameters/SessionId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: Selected session revoked. Idempotent.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/RecentAuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /sessions/revoke-others:
+    post:
+      tags: [Sessions]
+      operationId: revokeOtherSessions
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: All sessions except the current rotated session are revoked.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/RecentAuthenticationRequired'
+  /invitations:
+    get:
+      tags: [Invitations]
+      operationId: listInvitations
+      responses:
+        '200':
+          description: Invitations for the singleton tree.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Invitation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Invitations]
+      operationId: createInvitation
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvitationRequest'
+      responses:
+        '201':
+          description: Invitation created for the current singleton tree.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invitation'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /invitations/{invitationId}:
+    delete:
+      tags: [Invitations]
+      operationId: revokeInvitation
+      parameters:
+        - $ref: '#/components/parameters/InvitationId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: Invitation revoked. Idempotent.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /invitations/accept:
+    post:
+      tags: [Invitations]
+      operationId: acceptInvitation
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptInvitationRequest'
+      responses:
+        '200':
+          description: Invitation consumed once and account membership activated.
+          headers:
+            Set-Cookie:
+              $ref: '#/components/headers/SessionCookie'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedSession'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '410':
+          $ref: '#/components/responses/Gone'
+  /tree:
+    get:
+      tags: [Tree]
+      operationId: getTree
+      description: Returns the deployment's singleton family tree. There is no tree collection or create-tree API.
+      responses:
+        '200':
+          description: Singleton tree.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tree'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    patch:
+      tags: [Tree]
+      operationId: updateTree
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/UpdateTreeRequest'
+      responses:
+        '200':
+          description: Updated singleton tree.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tree'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+  /people:
+    get:
+      tags: [People]
+      operationId: listPeople
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: query
+          in: query
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 200
+        - name: livingStatus
+          in: query
+          schema:
+            $ref: '#/components/schemas/LivingStatus'
+      responses:
+        '200':
+          description: Authorized people from the singleton tree.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PeoplePage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [People]
+      operationId: createPerson
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePersonRequest'
+      responses:
+        '201':
+          description: Person created in the singleton tree.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /people/{personId}:
+    get:
+      tags: [People]
+      operationId: getPerson
+      parameters:
+        - $ref: '#/components/parameters/PersonId'
+      responses:
+        '200':
+          description: Authorized person record including claims, never account secrets.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [People]
+      operationId: updatePerson
+      parameters:
+        - $ref: '#/components/parameters/PersonId'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/UpdatePersonRequest'
+      responses:
+        '200':
+          description: Person updated.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+    delete:
+      tags: [People]
+      operationId: deletePerson
+      description: Deletes or tombstones according to retention policy; never silently cascades genealogy claims.
+      parameters:
+        - $ref: '#/components/parameters/PersonId'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          description: Deletion accepted with explicit impact and state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/RecentAuthenticationRequired'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+  /relationships:
+    get:
+      tags: [Relationships]
+      operationId: listRelationships
+      parameters:
+        - name: personId
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/OpaqueId'
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Explicitly typed authorized relationships for one person.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationshipsPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Relationships]
+      operationId: createRelationship
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRelationshipRequest'
+      responses:
+        '201':
+          description: Relationship claim created. Inverse claims are never fabricated silently.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Relationship'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /relationships/{relationshipId}:
+    patch:
+      tags: [Relationships]
+      operationId: updateRelationship
+      parameters:
+        - $ref: '#/components/parameters/RelationshipId'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/UpdateRelationshipRequest'
+      responses:
+        '200':
+          description: Relationship claim updated.
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Relationship'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+    delete:
+      tags: [Relationships]
+      operationId: deleteRelationship
+      parameters:
+        - $ref: '#/components/parameters/RelationshipId'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204':
+          description: Relationship claim deleted without deleting either person.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+  /sources:
+    get:
+      tags: [Sources]
+      operationId: listSources
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Authorized source records.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourcesPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [Sources]
+      operationId: createSource
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSourceRequest'
+      responses:
+        '201':
+          description: Source created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /sources/{sourceId}:
+    get:
+      tags: [Sources]
+      operationId: getSource
+      parameters:
+        - $ref: '#/components/parameters/SourceId'
+      responses:
+        '200':
+          description: Source record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Sources]
+      operationId: updateSource
+      parameters:
+        - $ref: '#/components/parameters/SourceId'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/UpdateSourceRequest'
+      responses:
+        '200':
+          description: Source updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+  /citations:
+    post:
+      tags: [Citations]
+      operationId: createCitation
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateCitationRequest'
+      responses:
+        '201':
+          description: Citation binds a source to a specific claim or record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Citation'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /citations/{citationId}:
+    delete:
+      tags: [Citations]
+      operationId: deleteCitation
+      parameters:
+        - $ref: '#/components/parameters/CitationId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '204':
+          description: Citation removed without deleting its source or target claim.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /media/upload-intents:
+    post:
+      tags: [Media]
+      operationId: createMediaUploadIntent
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUploadIntentRequest'
+      responses:
+        '201':
+          description: Short-lived single-object upload capability for private S3-compatible storage.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadIntent'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+  /media/{mediaId}/complete:
+    post:
+      tags: [Media]
+      operationId: completeMediaUpload
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteUploadRequest'
+      responses:
+        '202':
+          description: Verification accepted; object is not readable until state becomes ready.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaObject'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /media/{mediaId}:
+    get:
+      tags: [Media]
+      operationId: getMedia
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+      responses:
+        '200':
+          description: Media metadata. Storage keys and permanent object URLs are never exposed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MediaObject'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Media]
+      operationId: deleteMedia
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '202':
+          description: Durable deletion intent recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionStatus'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /media/{mediaId}/download:
+    post:
+      tags: [Media]
+      operationId: createMediaDownload
+      parameters:
+        - $ref: '#/components/parameters/MediaId'
+        - $ref: '#/components/parameters/CsrfHeader'
+      responses:
+        '200':
+          description: Short-lived authorized download capability. Never cache this response.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: no-store
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DownloadCapability'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /gedcom/imports:
+    post:
+      tags: [GEDCOM]
+      operationId: createGedcomImport
+      description: Creates a dry-run import into the singleton tree. Import never provisions another tree.
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGedcomImportRequest'
+      responses:
+        '202':
+          description: Dry-run analysis accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GedcomImport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+  /gedcom/imports/{importId}:
+    get:
+      tags: [GEDCOM]
+      operationId: getGedcomImport
+      parameters:
+        - $ref: '#/components/parameters/ImportId'
+      responses:
+        '200':
+          description: Dry-run or committed import status and diagnostics.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GedcomImport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /gedcom/imports/{importId}/commit:
+    post:
+      tags: [GEDCOM]
+      operationId: commitGedcomImport
+      parameters:
+        - $ref: '#/components/parameters/ImportId'
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommitGedcomImportRequest'
+      responses:
+        '202':
+          description: Explicitly reviewed import commit accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GedcomImport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /gedcom/exports:
+    post:
+      tags: [GEDCOM]
+      operationId: createGedcomExport
+      parameters:
+        - $ref: '#/components/parameters/CsrfHeader'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateGedcomExportRequest'
+      responses:
+        '202':
+          description: Export accepted for the full singleton tree or an explicit subgraph.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GedcomExport'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/RecentAuthenticationRequired'
+  /gedcom/exports/{exportId}:
+    get:
+      tags: [GEDCOM]
+      operationId: getGedcomExport
+      parameters:
+        - $ref: '#/components/parameters/ExportId'
+      responses:
+        '200':
+          description: Export status. A ready export may contain a short-lived download capability.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GedcomExport'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Host-rumpun_session
+      description: Opaque random session token. Roles and permissions are never encoded in it.
+  headers:
+    SessionCookie:
+      description: Hardened host-only opaque session cookie.
+      schema:
+        type: string
+        example: __Host-rumpun_session=opaque; Path=/; Secure; HttpOnly; SameSite=Lax
+    ETag:
+      description: Opaque resource version used for optimistic concurrency.
+      schema:
+        type: string
+        example: '"v_01JABCDEF"'
+  parameters:
+    CsrfHeader:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: Session-bound CSRF token required for unsafe browser methods.
+      schema:
+        type: string
+        minLength: 32
+        maxLength: 512
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Opaque caller-generated key scoped to actor, operation, and request body.
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9._~-]{16,128}$'
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema:
+        type: string
+        minLength: 3
+        maxLength: 128
+    Cursor:
+      name: cursor
+      in: query
+      schema:
+        type: string
+        minLength: 1
+        maxLength: 512
+    Limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 25
+    PersonId:
+      name: personId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    RelationshipId:
+      name: relationshipId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    SourceId:
+      name: sourceId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    CitationId:
+      name: citationId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    MediaId:
+      name: mediaId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    SessionId:
+      name: sessionId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    InvitationId:
+      name: invitationId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    ImportId:
+      name: importId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+    ExportId:
+      name: exportId
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/OpaqueId'
+  responses:
+    ValidationError:
+      description: Request validation failed.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/ValidationProblem'
+    Unauthorized:
+      description: Authentication is required or the session is invalid.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Forbidden:
+      description: Current authenticated actor is not authorized.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RecentAuthenticationRequired:
+      description: A valid session exists but this action requires recent reauthentication.
+      content:
+        application/problem+json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/Problem'
+              - type: object
+                properties:
+                  code:
+                    const: recent_authentication_required
+    NotFound:
+      description: Resource is absent or intentionally concealed from the actor.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Conflict:
+      description: Request conflicts with current authoritative state.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionFailed:
+      description: If-Match does not match the current resource version.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    Gone:
+      description: One-time or expiring capability is no longer usable.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PayloadTooLarge:
+      description: Declared or observed payload exceeds configured limits.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    RateLimited:
+      description: Request was rate limited.
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+            minimum: 1
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    ServiceUnavailable:
+      description: A correctness-critical dependency or expected policy revision is unavailable.
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    OpaqueId:
+      type: string
+      pattern: '^[A-Za-z0-9_-]{20,64}$'
+      examples: [01JABCDEF0123456789XYZABCD]
+    Timestamp:
+      type: string
+      format: date-time
+    Email:
+      type: string
+      format: email
+      maxLength: 320
+    Password:
+      type: string
+      minLength: 12
+      maxLength: 1024
+      description: Long passphrases, Unicode, spaces, and password-manager paste are allowed. Never returned.
+    ResourceVersion:
+      type: string
+      minLength: 1
+      maxLength: 128
+    Health:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: alive
+    Readiness:
+      type: object
+      additionalProperties: false
+      required: [status, policyRevision, dependencies]
+      properties:
+        status:
+          type: string
+          enum: [ready, degraded, unavailable]
+        policyRevision:
+          type: string
+          minLength: 1
+          maxLength: 128
+        dependencies:
+          type: object
+          additionalProperties: false
+          required: [postgresql, opa, objectStorage, redis]
+          properties:
+            postgresql:
+              $ref: '#/components/schemas/DependencyState'
+            opa:
+              $ref: '#/components/schemas/DependencyState'
+            objectStorage:
+              $ref: '#/components/schemas/DependencyState'
+            redis:
+              description: Redis may be degraded without making core correctness unavailable.
+              $ref: '#/components/schemas/DependencyState'
+    DependencyState:
+      type: string
+      enum: [ready, degraded, unavailable, disabled]
+    Accepted:
+      type: object
+      additionalProperties: false
+      required: [accepted]
+      properties:
+        accepted:
+          type: boolean
+          const: true
+    BootstrapStatus:
+      type: object
+      additionalProperties: false
+      required: [available, expiresAt]
+      properties:
+        available:
+          type: boolean
+        expiresAt:
+          oneOf:
+            - $ref: '#/components/schemas/Timestamp'
+            - type: 'null'
+    BootstrapAdminRequest:
+      type: object
+      additionalProperties: false
+      required: [bootstrapToken, email, password, displayName, treeName]
+      properties:
+        bootstrapToken:
+          type: string
+          minLength: 32
+          maxLength: 512
+          writeOnly: true
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          $ref: '#/components/schemas/Password'
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        treeName:
+          type: string
+          minLength: 1
+          maxLength: 200
+    CsrfToken:
+      type: object
+      additionalProperties: false
+      required: [token, expiresAt]
+      properties:
+        token:
+          type: string
+          minLength: 32
+          maxLength: 512
+          writeOnly: true
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          $ref: '#/components/schemas/Password'
+    ReauthenticateRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        password:
+          $ref: '#/components/schemas/Password'
+    ChangePasswordRequest:
+      type: object
+      additionalProperties: false
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          $ref: '#/components/schemas/Password'
+        newPassword:
+          $ref: '#/components/schemas/Password'
+    RecoveryRequest:
+      type: object
+      additionalProperties: false
+      required: [email]
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+    RecoveryCompleteRequest:
+      type: object
+      additionalProperties: false
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+          minLength: 32
+          maxLength: 512
+          writeOnly: true
+        newPassword:
+          $ref: '#/components/schemas/Password'
+    AuthenticatedSession:
+      type: object
+      additionalProperties: false
+      required: [account, membership, session]
+      properties:
+        account:
+          $ref: '#/components/schemas/Account'
+        membership:
+          $ref: '#/components/schemas/Membership'
+        session:
+          $ref: '#/components/schemas/Session'
+    CurrentAccount:
+      allOf:
+        - $ref: '#/components/schemas/AuthenticatedSession'
+        - type: object
+          additionalProperties: false
+          required: [account, membership, session, tree]
+          properties:
+            account:
+              $ref: '#/components/schemas/Account'
+            membership:
+              $ref: '#/components/schemas/Membership'
+            session:
+              $ref: '#/components/schemas/Session'
+            tree:
+              $ref: '#/components/schemas/TreeSummary'
+    Account:
+      type: object
+      additionalProperties: false
+      required: [id, email, displayName, status, createdAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        email:
+          $ref: '#/components/schemas/Email'
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        status:
+          type: string
+          enum: [active, suspended, disabled]
+        linkedPersonId:
+          description: Optional convenience link; account and genealogy identity remain independent.
+          oneOf:
+            - $ref: '#/components/schemas/OpaqueId'
+            - type: 'null'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    Membership:
+      type: object
+      additionalProperties: false
+      required: [id, treeId, status, roles, version]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        treeId:
+          $ref: '#/components/schemas/OpaqueId'
+        status:
+          type: string
+          enum: [active, suspended, revoked]
+        roles:
+          type: array
+          uniqueItems: true
+          maxItems: 10
+          items:
+            type: string
+            enum: [administrator, editor, contributor, viewer]
+          readOnly: true
+        version:
+          type: integer
+          minimum: 1
+          readOnly: true
+    Session:
+      type: object
+      additionalProperties: false
+      required: [id, current, createdAt, lastSeenAt, idleExpiresAt, absoluteExpiresAt, assurance]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        current:
+          type: boolean
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        lastSeenAt:
+          $ref: '#/components/schemas/Timestamp'
+        idleExpiresAt:
+          $ref: '#/components/schemas/Timestamp'
+        absoluteExpiresAt:
+          $ref: '#/components/schemas/Timestamp'
+        assurance:
+          type: string
+          enum: [normal, recent]
+        clientLabel:
+          type: string
+          maxLength: 200
+    CreateInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [email, role]
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+        role:
+          type: string
+          enum: [administrator, editor, contributor, viewer]
+        expiresInHours:
+          type: integer
+          minimum: 1
+          maximum: 168
+          default: 72
+    AcceptInvitationRequest:
+      type: object
+      additionalProperties: false
+      required: [token, displayName, password]
+      properties:
+        token:
+          type: string
+          minLength: 32
+          maxLength: 512
+          writeOnly: true
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 200
+        password:
+          $ref: '#/components/schemas/Password'
+    Invitation:
+      type: object
+      additionalProperties: false
+      required: [id, email, role, status, expiresAt, createdAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        email:
+          $ref: '#/components/schemas/Email'
+        role:
+          type: string
+          enum: [administrator, editor, contributor, viewer]
+        status:
+          type: string
+          enum: [pending, accepted, expired, revoked]
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+    TreeSummary:
+      type: object
+      additionalProperties: false
+      required: [id, name]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+    Tree:
+      allOf:
+        - $ref: '#/components/schemas/TreeSummary'
+        - type: object
+          additionalProperties: false
+          required: [id, name, locale, version, createdAt, updatedAt]
+          properties:
+            id:
+              $ref: '#/components/schemas/OpaqueId'
+            name:
+              type: string
+              minLength: 1
+              maxLength: 200
+            locale:
+              type: string
+              pattern: '^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$'
+            description:
+              type: string
+              maxLength: 2000
+            version:
+              $ref: '#/components/schemas/ResourceVersion'
+            createdAt:
+              $ref: '#/components/schemas/Timestamp'
+            updatedAt:
+              $ref: '#/components/schemas/Timestamp'
+    UpdateTreeRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 200
+        locale:
+          type: string
+          pattern: '^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$'
+        description:
+          oneOf:
+            - type: string
+              maxLength: 2000
+            - type: 'null'
+    LivingStatus:
+      type: string
+      enum: [living, deceased, unknown]
+    PrivacyLevel:
+      type: string
+      enum: [members, editors, administrators]
+      description: There is no public visibility in the initial contract.
+    Confidence:
+      type: string
+      enum: [unknown, low, medium, high, disputed]
+    NameType:
+      type: string
+      enum: [birth, married, adopted, alias, religious, transliterated, other]
+    PersonName:
+      type: object
+      additionalProperties: false
+      required: [id, type, display, preferred]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        type:
+          $ref: '#/components/schemas/NameType'
+        display:
+          type: string
+          minLength: 1
+          maxLength: 500
+        given:
+          type: string
+          maxLength: 200
+        surname:
+          type: string
+          maxLength: 200
+        prefix:
+          type: string
+          maxLength: 100
+        suffix:
+          type: string
+          maxLength: 100
+        preferred:
+          type: boolean
+        languageTag:
+          type: string
+          maxLength: 35
+    GenealogicalDate:
+      type: object
+      additionalProperties: false
+      required: [kind, originalText]
+      description: Preserves uncertainty and original text rather than inventing a precise date.
+      properties:
+        kind:
+          type: string
+          enum: [exact, approximate, before, after, between, period, text, unknown]
+        originalText:
+          type: string
+          minLength: 1
+          maxLength: 500
+        start:
+          type: string
+          format: date
+        end:
+          type: string
+          format: date
+        calendar:
+          type: string
+          maxLength: 100
+    FactType:
+      type: string
+      enum: [birth, death, burial, marriage, divorce, residence, occupation, education, nationality, religion, custom]
+    Fact:
+      type: object
+      additionalProperties: false
+      required: [id, type, confidence, privacy, citations]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        type:
+          $ref: '#/components/schemas/FactType'
+        customType:
+          type: string
+          maxLength: 100
+        value:
+          type: string
+          maxLength: 2000
+        date:
+          $ref: '#/components/schemas/GenealogicalDate'
+        place:
+          type: string
+          maxLength: 500
+        confidence:
+          $ref: '#/components/schemas/Confidence'
+        privacy:
+          $ref: '#/components/schemas/PrivacyLevel'
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/CitationSummary'
+    Person:
+      type: object
+      additionalProperties: false
+      required: [id, treeId, names, livingStatus, privacy, facts, version, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        treeId:
+          $ref: '#/components/schemas/OpaqueId'
+          readOnly: true
+        names:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/PersonName'
+        livingStatus:
+          $ref: '#/components/schemas/LivingStatus'
+        privacy:
+          $ref: '#/components/schemas/PrivacyLevel'
+        sex:
+          type: string
+          enum: [female, male, intersex, unknown, not_recorded]
+          description: Genealogy record value; it does not infer gender identity or relationship role.
+        notes:
+          type: string
+          maxLength: 10000
+        facts:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/Fact'
+        version:
+          $ref: '#/components/schemas/ResourceVersion'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    PersonNameInput:
+      type: object
+      additionalProperties: false
+      required: [type, display, preferred]
+      properties:
+        type:
+          $ref: '#/components/schemas/NameType'
+        display:
+          type: string
+          minLength: 1
+          maxLength: 500
+        given:
+          type: string
+          maxLength: 200
+        surname:
+          type: string
+          maxLength: 200
+        prefix:
+          type: string
+          maxLength: 100
+        suffix:
+          type: string
+          maxLength: 100
+        preferred:
+          type: boolean
+        languageTag:
+          type: string
+          maxLength: 35
+    FactInput:
+      type: object
+      additionalProperties: false
+      required: [type, confidence, privacy]
+      properties:
+        type:
+          $ref: '#/components/schemas/FactType'
+        customType:
+          type: string
+          maxLength: 100
+        value:
+          type: string
+          maxLength: 2000
+        date:
+          $ref: '#/components/schemas/GenealogicalDate'
+        place:
+          type: string
+          maxLength: 500
+        confidence:
+          $ref: '#/components/schemas/Confidence'
+        privacy:
+          $ref: '#/components/schemas/PrivacyLevel'
+    CreatePersonRequest:
+      type: object
+      additionalProperties: false
+      required: [names, livingStatus, privacy]
+      properties:
+        names:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/PersonNameInput'
+        livingStatus:
+          $ref: '#/components/schemas/LivingStatus'
+        privacy:
+          $ref: '#/components/schemas/PrivacyLevel'
+        sex:
+          type: string
+          enum: [female, male, intersex, unknown, not_recorded]
+        notes:
+          type: string
+          maxLength: 10000
+        facts:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/FactInput'
+    UpdatePersonRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        names:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/PersonNameInput'
+        livingStatus:
+          $ref: '#/components/schemas/LivingStatus'
+        privacy:
+          $ref: '#/components/schemas/PrivacyLevel'
+        sex:
+          type: string
+          enum: [female, male, intersex, unknown, not_recorded]
+        notes:
+          oneOf:
+            - type: string
+              maxLength: 10000
+            - type: 'null'
+        facts:
+          type: array
+          maxItems: 500
+          items:
+            $ref: '#/components/schemas/FactInput'
+    PeoplePage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Person'
+        nextCursor:
+          oneOf:
+            - type: string
+              maxLength: 512
+            - type: 'null'
+    RelationshipType:
+      type: string
+      enum: [biological_parent, adoptive_parent, foster_parent, guardian, spouse, partner, step_parent, sibling, custom]
+    Relationship:
+      type: object
+      additionalProperties: false
+      required: [id, treeId, fromPersonId, toPersonId, type, confidence, privacy, citations, version, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        treeId:
+          $ref: '#/components/schemas/OpaqueId'
+          readOnly: true
+        fromPersonId:
+          $ref: '#/components/schemas/OpaqueId'
+        toPersonId:
+          $ref: '#/components/schemas/OpaqueId'
+        type:
+          $ref: '#/components/schemas/RelationshipType'
+        customType:
+          type: string
+          maxLength: 100
+        startDate:
+          $ref: '#/components/schemas/GenealogicalDate'
+        endDate:
+          $ref: '#/components/schemas/GenealogicalDate'
+        confidence:
+          $ref: '#/components/schemas/Confidence'
+        privacy:
+          $ref: '#/components/schemas/PrivacyLevel'
+        notes:
+          type: string
+          maxLength: 10000
+        citations:
+          type: array
+          items:
+            $ref: '#/components/schemas/CitationSummary'
+        version:
+          $ref: '#/components/schemas/ResourceVersion'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    CreateRelationshipRequest:
+      type: object
+      additionalProperties: false
+      required: [fromPersonId, toPersonId, type, confidence, privacy]
+      properties:
+        fromPersonId:
+          $ref: '#/components/schemas/OpaqueId'
+        toPersonId:
+          $ref: '#/components/schemas/OpaqueId'
+        type:
+          $ref: '#/components/schemas/RelationshipType'
+        customType:
+          type: string
+          maxLength: 100
+        startDate:
+          $ref: '#/components/schemas/GenealogicalDate'
+        endDate:
+          $ref: '#/components/schemas/GenealogicalDate'
+        confidence:
+          $ref: '#/components/schemas/Confidence'
+        privacy:
+          $ref: '#/components/schemas/PrivacyLevel'
+        notes:
+          type: string
+          maxLength: 10000
+    UpdateRelationshipRequest:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        type:
+          $ref: '#/components/schemas/RelationshipType'
+        customType:
+          type: string
+          maxLength: 100
+        startDate:
+          $ref: '#/components/schemas/GenealogicalDate'
+        endDate:
+          $ref: '#/components/schemas/GenealogicalDate'
+        confidence:
+          $ref: '#/components/schemas/Confidence'
+        privacy:
+          $ref: '#/components/schemas/PrivacyLevel'
+        notes:
+          oneOf:
+            - type: string
+              maxLength: 10000
+            - type: 'null'
+    RelationshipsPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Relationship'
+        nextCursor:
+          oneOf:
+            - type: string
+              maxLength: 512
+            - type: 'null'
+    Source:
+      type: object
+      additionalProperties: false
+      required: [id, treeId, title, type, version, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        treeId:
+          $ref: '#/components/schemas/OpaqueId'
+          readOnly: true
+        title:
+          type: string
+          minLength: 1
+          maxLength: 500
+        type:
+          type: string
+          enum: [document, book, archive, website, interview, image, certificate, database, other]
+        author:
+          type: string
+          maxLength: 500
+        repository:
+          type: string
+          maxLength: 500
+        publication:
+          type: string
+          maxLength: 1000
+        locator:
+          type: string
+          maxLength: 1000
+        notes:
+          type: string
+          maxLength: 10000
+        mediaIds:
+          type: array
+          uniqueItems: true
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/OpaqueId'
+        version:
+          $ref: '#/components/schemas/ResourceVersion'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    CreateSourceRequest:
+      type: object
+      additionalProperties: false
+      required: [title, type]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 500
+        type:
+          type: string
+          enum: [document, book, archive, website, interview, image, certificate, database, other]
+        author:
+          type: string
+          maxLength: 500
+        repository:
+          type: string
+          maxLength: 500
+        publication:
+          type: string
+          maxLength: 1000
+        locator:
+          type: string
+          maxLength: 1000
+        notes:
+          type: string
+          maxLength: 10000
+        mediaIds:
+          type: array
+          uniqueItems: true
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/OpaqueId'
+    UpdateSourceRequest:
+      allOf:
+        - $ref: '#/components/schemas/CreateSourceRequest'
+        - type: object
+          minProperties: 1
+          required: []
+    SourcesPage:
+      type: object
+      additionalProperties: false
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Source'
+        nextCursor:
+          oneOf:
+            - type: string
+              maxLength: 512
+            - type: 'null'
+    CitationTargetType:
+      type: string
+      enum: [person, person_name, fact, relationship, source]
+    CitationSummary:
+      type: object
+      additionalProperties: false
+      required: [id, sourceId, targetType, targetId]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        sourceId:
+          $ref: '#/components/schemas/OpaqueId'
+        targetType:
+          $ref: '#/components/schemas/CitationTargetType'
+        targetId:
+          $ref: '#/components/schemas/OpaqueId'
+    Citation:
+      allOf:
+        - $ref: '#/components/schemas/CitationSummary'
+        - type: object
+          additionalProperties: false
+          required: [id, sourceId, targetType, targetId, confidence, createdAt]
+          properties:
+            id:
+              $ref: '#/components/schemas/OpaqueId'
+            sourceId:
+              $ref: '#/components/schemas/OpaqueId'
+            targetType:
+              $ref: '#/components/schemas/CitationTargetType'
+            targetId:
+              $ref: '#/components/schemas/OpaqueId'
+            locator:
+              type: string
+              maxLength: 1000
+            transcription:
+              type: string
+              maxLength: 20000
+            confidence:
+              $ref: '#/components/schemas/Confidence'
+            notes:
+              type: string
+              maxLength: 10000
+            createdAt:
+              $ref: '#/components/schemas/Timestamp'
+    CreateCitationRequest:
+      type: object
+      additionalProperties: false
+      required: [sourceId, targetType, targetId, confidence]
+      properties:
+        sourceId:
+          $ref: '#/components/schemas/OpaqueId'
+        targetType:
+          $ref: '#/components/schemas/CitationTargetType'
+        targetId:
+          $ref: '#/components/schemas/OpaqueId'
+        locator:
+          type: string
+          maxLength: 1000
+        transcription:
+          type: string
+          maxLength: 20000
+        confidence:
+          $ref: '#/components/schemas/Confidence'
+        notes:
+          type: string
+          maxLength: 10000
+    MediaState:
+      type: string
+      enum: [pending, uploading, verifying, ready, deleting, deleted, failed]
+    MediaObject:
+      type: object
+      additionalProperties: false
+      required: [id, treeId, displayName, mediaType, sizeBytes, sha256, state, privacy, version, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        treeId:
+          $ref: '#/components/schemas/OpaqueId'
+          readOnly: true
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 500
+        mediaType:
+          type: string
+          maxLength: 200
+        sizeBytes:
+          type: integer
+          minimum: 0
+          maximum: 1073741824
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        state:
+          $ref: '#/components/schemas/MediaState'
+        privacy:
+          $ref: '#/components/schemas/PrivacyLevel'
+        version:
+          $ref: '#/components/schemas/ResourceVersion'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    CreateUploadIntentRequest:
+      type: object
+      additionalProperties: false
+      required: [displayName, mediaType, sizeBytes, sha256, privacy]
+      properties:
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 500
+        mediaType:
+          type: string
+          maxLength: 200
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 1073741824
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        privacy:
+          $ref: '#/components/schemas/PrivacyLevel'
+    UploadIntent:
+      type: object
+      additionalProperties: false
+      required: [media, method, uploadUrl, requiredHeaders, expiresAt]
+      properties:
+        media:
+          $ref: '#/components/schemas/MediaObject'
+        method:
+          type: string
+          const: PUT
+        uploadUrl:
+          type: string
+          format: uri
+          writeOnly: true
+        requiredHeaders:
+          type: object
+          additionalProperties:
+            type: string
+          writeOnly: true
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+    CompleteUploadRequest:
+      type: object
+      additionalProperties: false
+      required: [sha256, sizeBytes]
+      properties:
+        sha256:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+        sizeBytes:
+          type: integer
+          minimum: 1
+          maximum: 1073741824
+    DownloadCapability:
+      type: object
+      additionalProperties: false
+      required: [url, expiresAt]
+      properties:
+        url:
+          type: string
+          format: uri
+          writeOnly: true
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+    CreateGedcomImportRequest:
+      type: object
+      additionalProperties: false
+      required: [mediaId, mode]
+      properties:
+        mediaId:
+          $ref: '#/components/schemas/OpaqueId'
+        mode:
+          type: string
+          const: dry_run
+        expectedVersion:
+          type: string
+          enum: ['5.5.1', '7.x', auto_detect]
+        preserveUnsupportedTags:
+          type: boolean
+          default: true
+    CommitGedcomImportRequest:
+      type: object
+      additionalProperties: false
+      required: [reviewedDiagnosticVersion, duplicateStrategy]
+      properties:
+        reviewedDiagnosticVersion:
+          $ref: '#/components/schemas/ResourceVersion'
+        duplicateStrategy:
+          type: string
+          enum: [keep_separate, link_confirmed_only]
+          description: Silent person merging is forbidden.
+    GedcomDiagnostic:
+      type: object
+      additionalProperties: false
+      required: [severity, code, message]
+      properties:
+        severity:
+          type: string
+          enum: [info, warning, error]
+        code:
+          type: string
+          pattern: '^[a-z0-9_]{3,100}$'
+        message:
+          type: string
+          maxLength: 2000
+        recordReference:
+          type: string
+          maxLength: 200
+    GedcomImport:
+      type: object
+      additionalProperties: false
+      required: [id, state, mode, diagnostics, diagnosticVersion, createdAt, updatedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        state:
+          type: string
+          enum: [queued, analyzing, review_required, committing, completed, failed, cancelled]
+        mode:
+          type: string
+          enum: [dry_run, commit]
+        detectedVersion:
+          type: string
+          maxLength: 50
+        counts:
+          type: object
+          additionalProperties: false
+          properties:
+            people:
+              type: integer
+              minimum: 0
+            familyRecords:
+              type: integer
+              minimum: 0
+            sources:
+              type: integer
+              minimum: 0
+            warnings:
+              type: integer
+              minimum: 0
+            errors:
+              type: integer
+              minimum: 0
+        diagnostics:
+          type: array
+          maxItems: 10000
+          items:
+            $ref: '#/components/schemas/GedcomDiagnostic'
+        diagnosticVersion:
+          $ref: '#/components/schemas/ResourceVersion'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        updatedAt:
+          $ref: '#/components/schemas/Timestamp'
+    CreateGedcomExportRequest:
+      type: object
+      additionalProperties: false
+      required: [scope, version, includeLivingPeople]
+      properties:
+        scope:
+          oneOf:
+            - type: object
+              additionalProperties: false
+              required: [type]
+              properties:
+                type:
+                  const: full_tree
+            - type: object
+              additionalProperties: false
+              required: [type, rootPersonId, direction, maxGenerations]
+              properties:
+                type:
+                  const: subgraph
+                rootPersonId:
+                  $ref: '#/components/schemas/OpaqueId'
+                direction:
+                  type: string
+                  enum: [ancestors, descendants, both]
+                maxGenerations:
+                  type: integer
+                  minimum: 1
+                  maximum: 20
+        version:
+          type: string
+          enum: ['5.5.1', '7.x']
+        includeLivingPeople:
+          type: boolean
+        includeMediaReferences:
+          type: boolean
+          default: false
+    GedcomExport:
+      type: object
+      additionalProperties: false
+      required: [id, state, createdAt, expiresAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        state:
+          type: string
+          enum: [queued, generating, ready, failed, expired]
+        warnings:
+          type: array
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/GedcomDiagnostic'
+        download:
+          $ref: '#/components/schemas/DownloadCapability'
+        createdAt:
+          $ref: '#/components/schemas/Timestamp'
+        expiresAt:
+          $ref: '#/components/schemas/Timestamp'
+    DeletionStatus:
+      type: object
+      additionalProperties: false
+      required: [id, state, requestedAt]
+      properties:
+        id:
+          $ref: '#/components/schemas/OpaqueId'
+        state:
+          type: string
+          enum: [accepted, blocked, deleting, completed, failed]
+        reasonCode:
+          type: string
+          pattern: '^[a-z0-9_]{3,100}$'
+        requestedAt:
+          $ref: '#/components/schemas/Timestamp'
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status, code, requestId]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+        title:
+          type: string
+          maxLength: 200
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+        detail:
+          type: string
+          maxLength: 2000
+        code:
+          type: string
+          pattern: '^[a-z0-9_]{3,100}$'
+        requestId:
+          type: string
+          minLength: 1
+          maxLength: 128
+    ValidationIssue:
+      type: object
+      additionalProperties: false
+      required: [path, code, message]
+      properties:
+        path:
+          type: string
+          maxLength: 500
+        code:
+          type: string
+          pattern: '^[a-z0-9_]{3,100}$'
+        message:
+          type: string
+          maxLength: 1000
+    ValidationProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [errors]
+          properties:
+            errors:
+              type: array
+              minItems: 1
+              maxItems: 100
+              items:
+                $ref: '#/components/schemas/ValidationIssue'
