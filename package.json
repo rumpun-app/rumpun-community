@@ -1,0 +1,23 @@
+{
+  "name": "rumpun-community",
+  "private": true,
+  "scripts": {
+    "build": "pnpm -r build",
+    "build:api": "pnpm --filter @rumpun/api build",
+    "dev": "pnpm --filter @rumpun/api dev",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:api": "pnpm --filter @rumpun/api test",
+    "format": "prettier --check \"**/*.{ts,tsx,json,yaml,md}\"",
+    "format:write": "prettier --write \"**/*.{ts,tsx,json,yaml,md}\"",
+    "check": "pnpm format && pnpm typecheck && pnpm lint && pnpm test"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["argon2", "better-sqlite3", "esbuild"]
+  }
+}
