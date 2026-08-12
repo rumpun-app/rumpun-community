@@ -1,27 +1,15 @@
 # Governance
 
-Rumpun Community is intended to be maintained by its contributor community, independently of proprietary Rumpun.
+Rumpun Community uses public repository history, issues, pull requests, and ADRs as its decision record.
 
-## Roles
+## Current decision authority
 
-- **Contributors** submit issues, documentation, reviews, designs, code, or translations.
-- **Maintainers** review changes, manage releases, enforce policies, and steward project health.
-- **Module owners** may be delegated review responsibility for a documented subsystem.
+Until a contributor community and maintainer group exist, the initial maintainer may accept bounded decisions directly and must record them publicly in the repository. This temporary model must not bypass licensing, provenance, security, privacy, accessibility, or portability review.
 
-## Decision making
+## Architectural decisions
 
-Prefer lazy consensus for reversible changes. Significant product, architecture, governance, licensing, privacy, or compatibility decisions require a written proposal and maintainer approval after public review.
+Material changes to the stack, public contracts, persistent services, data model, trust boundaries, self-hosting burden, or long-term maintenance require an ADR. Accepted ADRs remain authoritative until superseded by another accepted ADR with migration and rollback impact.
 
-When consensus fails, maintainers document the decision, trade-offs, and dissent. No single vendor receives automatic roadmap priority.
+## Contributions
 
-## Independence
-
-The repository must not share code, dependencies, release trains, private specifications, or privileged compatibility contracts with proprietary Rumpun. Contributors are evaluated on project work, not commercial affiliation.
-
-## Maintainer changes
-
-New maintainers should demonstrate sustained constructive contribution and sound judgment. Inactive maintainers may step down or be moved to emeritus status through a documented maintainer decision.
-
-## License changes
-
-Changing away from AGPL-3.0-only requires explicit legal review, public discussion, and any copyright permissions required by law. Do not assume relicensing is administratively simple.
+Contributions are reviewed on technical merit, product scope, provenance, tests, accessibility, security, privacy, data portability, and operational impact. All design and implementation inputs must be public and reviewable from this repository or cited public standards and dependencies.

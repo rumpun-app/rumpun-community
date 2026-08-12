@@ -1,40 +1,20 @@
 # Rumpun Community
 
-A community-maintained, self-hostable family tree builder.
+Rumpun Community is a community-maintained, AGPL-3.0-only family tree builder focused on genealogy fundamentals, evidence, interoperability, accessibility, and self-hosting.
 
-> **Product boundary:** Rumpun Community is an independent genealogy product. It is not the open-source edition, free tier, or delayed release of the proprietary Rumpun family archive.
+The project models people, varied family relationships, genealogical facts, sources, citations, confidence, uncertainty, media supporting genealogy records, and GEDCOM data exchange. It preserves ambiguity instead of inventing certainty and uses synthetic data in repository fixtures.
 
-## Purpose
+## Status
 
-Rumpun Community answers: **Who is my family?**
+Architecture decisions and the initial OpenAPI contract are accepted on the `develop` branch. Implementation should follow `AGENTS.md`, accepted ADRs under `docs/adr/`, and the bounded delivery order in `ROADMAP.md`.
 
-The project focuses on genealogy fundamentals:
+## Repository principles
 
-- people and family relationships
-- interactive tree navigation
-- life facts, places, sources, citations, and supporting media
-- GEDCOM import and export
-- search, collaboration, localization, and self-hosting
-- stable extension points for community-built integrations
+- portable data and documented migrations
+- provenance and citations
+- secure defaults and minimal personal-data exposure
+- accessible and localizable core flows
+- practical installation, backup, restore, and recovery
+- public, reviewable architecture and source provenance
 
-It does not include Rumpun's commercial family-archive features, zero-knowledge E2EE, oral histories, heirloom stories, time capsules, or memorial experiences.
-
-## Current status
-
-**Foundation phase.** The product scope is being shaped before implementation begins. The technology stack is intentionally undecided. Proposals must start from requirements and trade-offs, not framework preference.
-
-See [ROADMAP.md](ROADMAP.md), [docs/PRODUCT_BOUNDARY.md](docs/PRODUCT_BOUNDARY.md), and [docs/ARCHITECTURE_PRINCIPLES.md](docs/ARCHITECTURE_PRINCIPLES.md).
-
-## Contributing
-
-Start with [CONTRIBUTING.md](CONTRIBUTING.md). Automated coding agents must also follow [AGENTS.md](AGENTS.md).
-
-Good first contributions include clarifying genealogy requirements, defining interoperability fixtures, documenting edge cases, reviewing accessibility needs, and proposing architecture through an ADR.
-
-## Governance
-
-The roadmap and technical direction are maintained by the community under [GOVERNANCE.md](GOVERNANCE.md). This repository shares no code, package, runtime dependency, or release train with proprietary Rumpun.
-
-## License
-
-GNU Affero General Public License v3.0 only. See [LICENSE](LICENSE). Modified versions used over a network must offer their corresponding source to users as required by the license.
+See [CONTRIBUTING.md](CONTRIBUTING.md), [GOVERNANCE.md](GOVERNANCE.md), [SECURITY.md](SECURITY.md), and [docs/PRODUCT_BOUNDARY.md](docs/PRODUCT_BOUNDARY.md).

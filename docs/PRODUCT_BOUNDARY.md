@@ -1,17 +1,9 @@
 # Product Boundary
 
-## Rumpun Community
+Rumpun Community is a community-maintained family tree builder.
 
-Rumpun Community is a community-maintained family tree builder. Its job is to represent who belongs to a family, how people are related, what genealogical facts are known, and what evidence supports those claims.
+Its scope is genealogy: people, names, varied family relationships, genealogical facts and events, places, sources, repositories, citations, notes, confidence, uncertainty, supporting media, collaboration required to maintain one shared tree, GEDCOM interoperability, accessibility, localization, and self-hosting operations.
 
-## Proprietary Rumpun
+A proposal belongs in this repository when its primary value improves genealogy correctness, evidence, interoperability, accessibility, portability, or self-hosting. Work outside this documented scope requires a public issue and, when it changes architecture, data, trust boundaries, or operations, a focused ADR.
 
-Rumpun is a separate commercial family archive. Its job is to preserve what a family leaves behind through private stories, oral history, heirlooms, memories, time capsules, memorial experiences, and zero-knowledge E2EE.
-
-## Separation rules
-
-The products have independent repositories, maintainers, roadmaps, code, packages, schemas, APIs, dependencies, and release trains. Shared branding does not imply technical inheritance.
-
-A feature belongs here when its primary value is genealogy, evidence, interoperability, or self-hosting. A feature does not belong here when its primary value is private legacy preservation or commercial-product compatibility.
-
-When uncertain, open a product-boundary issue before implementation.
+This repository is the complete source of product scope. Contributors and agents must not infer requirements from any external or non-public project material.

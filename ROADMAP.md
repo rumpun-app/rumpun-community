@@ -1,36 +1,32 @@
 # Roadmap
 
-This roadmap describes outcomes, not implementation technologies.
-
 ## Phase 0: Foundation
 
-- ratify product boundary and governance
-- map genealogy terminology and edge cases
-- define accessibility, privacy, and localization requirements
-- evaluate technology options through ADRs
-- establish synthetic interoperability fixtures
+- establish the accepted monorepo, runtime, CI, local services, and quality gates
+- validate the OpenAPI contract and runtime schemas
+- define the PostgreSQL schema, migrations, synthetic fixtures, and singleton-tree invariant
+- implement local authentication, server-side sessions, CSRF, and OPA integration
 
 ## Phase 1: Genealogy core
 
-- people and flexible relationships
-- life facts, places, sources, and citations
-- interactive multi-generation tree navigation
-- validation and change history
+- people and flexible typed relationships
+- names, life facts, places, sources, citations, and confidence
+- uncertainty, conflicting claims, validation, and change history
+- accessible multi-generation navigation and structured alternatives
 
 ## Phase 2: Portability
 
-- GEDCOM import/export and diagnostics
+- GEDCOM dry-run, diagnostics, explicit import commit, and export
 - backup, restore, and documented migrations
 - search and filters
-- media attachments supporting genealogy records
+- private media attachments supporting genealogy records
 
 ## Phase 3: Collaboration and operations
 
 - invitations, roles, and edit review
 - practical self-hosting and upgrade guidance
 - localization workflow
-- stable extension points
+- measured Redis caching for eligible reproducible reads
+- stable documented extension points
 
-## Explicitly out of scope
-
-Zero-knowledge E2EE, oral-history archives, heirloom narratives, time capsules, memorial experiences, and compatibility work tied to proprietary Rumpun.
+Work outside this roadmap requires a public proposal and, when architectural, a focused ADR.

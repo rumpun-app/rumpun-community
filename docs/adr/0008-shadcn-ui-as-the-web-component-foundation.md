@@ -103,7 +103,7 @@ Feature code should use semantic tokens and shared variants instead of scatterin
 
 The initial component theme must support light and dark modes without forcing dark mode into the first release. System preference, user preference, persistence, and no-flash behavior require implementation tests before dark mode is advertised.
 
-This ADR does not import or reproduce any proprietary Rumpun visual system. Rumpun Community must establish its own public visual identity, tokens, examples, and assets.
+This ADR does not import or reproduce any any external project visual system. Rumpun Community must establish its own public visual identity, tokens, examples, and assets.
 
 ### Accessibility
 
@@ -234,7 +234,7 @@ Storybook or another component workshop is not selected by this ADR. If added, i
 - **Upstream regeneration destroys fixes:** pin versions, diff generated output, and never overwrite blindly.
 - **Registry code introduces licensing or security problems:** require provenance and dependency review or reject it.
 - **Tree visualization excludes keyboard or screen-reader users:** ship a structured semantic alternative as part of the same feature.
-- **Community UI copies proprietary Rumpun:** create independent public tokens, content, assets, and implementation.
+- **Community UI copies any external project:** create independent public tokens, content, assets, and implementation.
 
 ### Migration implications
 

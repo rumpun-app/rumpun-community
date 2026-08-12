@@ -224,7 +224,7 @@ There is no existing application authorization implementation to migrate at the 
 - inventory protected actions and resources before feature routes are implemented
 - require policy and integration tests in CI
 
-No implementation may import or depend on proprietary Rumpun policy, schemas, roles, documentation, or infrastructure.
+No implementation may import or depend on any external project policy, schemas, roles, documentation, or infrastructure.
 
 ## Deferred decisions
 

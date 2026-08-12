@@ -21,7 +21,7 @@
 
 The contract covers system health, first-admin bootstrap, local login and recovery, server-side sessions, singleton-tree membership invitations, people, explicit relationships, sources, citations, private media upload/download capabilities, and GEDCOM import/export.
 
-It intentionally does not cover multi-tree tenancy, social login, OIDC, passkeys, public media, billing, oral histories, time capsules, memorial experiences, zero-knowledge E2EE, or proprietary Rumpun compatibility.
+It intentionally does not cover multi-tree tenancy, social login, OIDC, passkeys, public media, billing, undocumented capability E2EE, or any external project compatibility.
 
 ## Validation rules
 

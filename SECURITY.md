@@ -14,4 +14,4 @@ Maintainers aim to acknowledge reports within 7 days. Timelines for validation a
 
 ## Scope
 
-Security reports may cover authentication, authorization, data exposure, import parsing, uploads, dependency risk, backup/restore, and deployment defaults. Rumpun Community does not claim zero-knowledge or end-to-end encryption.
+Security reports may cover authentication, authorization, data exposure, import parsing, uploads, dependency risk, backup/restore, and deployment defaults. Rumpun Community does not claim undocumented capability or end-to-end encryption.
