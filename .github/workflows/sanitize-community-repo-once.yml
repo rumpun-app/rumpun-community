@@ -1,0 +1,344 @@
+name: Sanitize Community repository once
+
+on:
+  push:
+    branches: [develop]
+    paths: [.github/workflows/sanitize-community-repo-once.yml]
+
+permissions:
+  contents: write
+
+jobs:
+  sanitize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+      - name: Remove external product references and undisclosed scope
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -f COMMERCIAL_SEPARATION.md
+          if [ -f docs/adr/0001-independence-code-provenance-and-commercial-separation.md ]; then
+            mv docs/adr/0001-independence-code-provenance-and-commercial-separation.md docs/adr/0001-repository-independence-and-code-provenance.md
+          fi
+          cat > AGENTS.md <<'EOF'
+          # AGENTS.md
+
+          Instructions for AI coding agents and automated contributors working in this repository.
+
+          ## Mission
+
+          Build Rumpun Community as a community-maintained family tree application focused on genealogy fundamentals, evidence, interoperability, accessibility, and practical self-hosting.
+
+          ## Source-of-truth boundary
+
+          This repository is the complete product and architecture context available to agents. Use only committed files in this repository, cited public standards, and public upstream dependency documentation required by the assigned task.
+
+          Do not search for, request, infer, compare against, mention, or acknowledge any other product, repository, roadmap, design, feature set, schema, API, asset, prompt, infrastructure, or non-public material. Do not describe excluded features from elsewhere. If a requirement is not present here, treat it as unknown and stop at the exact gap.
+
+          Use synthetic data only. Never commit real family records or personal data.
+
+          ## Authority and decision status
+
+          Accepted ADRs under `docs/adr/` are binding implementation decisions. Read every ADR relevant to the assigned slice before editing code. Do not reopen an accepted decision inside an implementation pull request. If implementation evidence shows that a decision is unsafe or unworkable, propose a superseding ADR with migration and rollback impact.
+
+          ADR-0000 remains authoritative for decision discipline, but its temporary stack-neutrality restriction is superseded by accepted ADR-0002. Implementation may proceed within accepted boundaries.
+
+          ## Accepted architecture
+
+          - Monorepo with TypeScript applications and narrowly scoped shared packages.
+          - `apps/web`: Next.js frontend. It never connects directly to PostgreSQL, OPA, Redis, or S3-compatible storage.
+          - `apps/api`: Express canonical backend, authentication authority, policy enforcement point, transaction owner, and integration boundary.
+          - PostgreSQL is the authoritative transactional store.
+          - One deployment supports exactly one top-level family tree. Keep an explicit stable tree ID and scope.
+          - OPA is the policy decision point. Express supplies trusted facts and fails closed on missing, malformed, unavailable, or denied decisions.
+          - Authentication uses local email/password credentials with Argon2id and opaque server-side sessions stored in PostgreSQL. Browser sessions use hardened HttpOnly cookies and CSRF protection, never browser token storage.
+          - S3-compatible private object storage holds binary bytes. PostgreSQL remains authoritative for media metadata and lifecycle.
+          - Redis is disposable cache only. It is never authoritative for sessions, permissions, jobs, locks, audit records, genealogy data, or recovery.
+          - `apps/web` uses repository-owned shadcn/ui components with the pinned `new-york` style, Base UI primitives, Tailwind CSS, and semantic tokens.
+          - `packages/contracts/openapi/openapi.yaml` is the initial HTTP contract. Runtime validation is required; generated TypeScript types are not validation.
+
+          ## Required repository boundaries
+
+          - Browser code communicates with Express through the documented API only.
+          - Routes stay thin and delegate to explicit application and domain modules.
+          - Shared transport contracts must not replace domain entities or expose persistence row shapes.
+          - Account identity and genealogy person identity remain separate.
+          - Genealogy facts preserve uncertainty, conflicting claims, original values, sources, citations, and confidence.
+          - A top-level tree is not a household, surname, lineage branch, or GEDCOM `FAM` record.
+          - Imports target the existing singleton tree and never silently merge people or create another tree.
+          - Object keys, cache keys, logs, and telemetry must not leak unnecessary personal or genealogy data.
+          - Redis loss, flush, restart, or eviction may reduce performance only.
+
+          ## Required workflow
+
+          1. Read `README.md`, `CONTRIBUTING.md`, `ROADMAP.md`, `docs/PRODUCT_BOUNDARY.md`, relevant accepted ADRs, and affected OpenAPI schemas.
+          2. State the bounded implementation slice and explicit exclusions before changing code.
+          3. Confirm the slice does not depend on a deferred decision. If it does, create a focused ADR rather than guessing.
+          4. Keep each pull request focused and avoid unrelated refactors.
+          5. Update the OpenAPI contract, runtime schemas, migrations, tests, and operator documentation together when behavior changes.
+          6. Use explicit database migrations. Never use destructive implicit schema synchronization in production.
+          7. Add deterministic tests through the real production boundary where practical.
+          8. Run focused checks first, then the broader affected suite.
+          9. Report changed files, commands, results, migration and rollback impact, security and privacy impact, and remaining exclusions.
+          10. Do not merge, force-push reviewed history, weaken gates, or mark incomplete work production-ready without maintainer approval.
+
+          ## Implementation order
+
+          1. Foundation: package manager, workspace runner, pinned runtime versions, lint/type/test/build tooling, dependency boundaries, OpenAPI validation, local containers, and CI.
+          2. Persistence and singleton tree: PostgreSQL schema, migrations, synthetic fixtures, bootstrap invariants, and backup/restore skeleton.
+          3. Authentication and authorization: first-admin bootstrap, accounts, invitations, opaque sessions, CSRF, OPA contracts, policy tests, and fail-closed integration.
+          4. Genealogy core: people, names, typed relationships, facts, sources, citations, confidence, uncertainty, and change history.
+          5. Accessible web vertical slice using shadcn/ui without moving authority into the frontend.
+          6. Private S3-compatible media lifecycle and reconciliation.
+          7. GEDCOM dry-run, diagnostics, explicit commit, export, security limits, and round-trip evidence.
+          8. Redis caching only after measured eligible queries exist and uncached behavior is correct.
+
+          Do not implement the whole system in one pull request.
+
+          ## Quality gates
+
+          Every affected slice must include applicable formatting, linting, TypeScript, build, dependency-boundary, OpenAPI, migration, database integration, OPA, authentication, accessibility, storage, GEDCOM, cache-failure, and synthetic-fixture checks. Skipped, disabled, or model-only tests do not prove production behavior.
+
+          ## Security and privacy guardrails
+
+          - Default deny and fail closed at authentication, authorization, storage, and lifecycle boundaries.
+          - Never trust browser-supplied roles, tree IDs, storage keys, session assurance, MIME types, or authorization facts.
+          - Never log passwords, raw session or CSRF tokens, invitation or recovery tokens, presigned URLs, storage credentials, GEDCOM payloads, or genealogy content by default.
+          - Keep protected mutations idempotent where the contract requires it and use optimistic concurrency where defined.
+          - Do not claim capabilities that the accepted repository architecture does not provide.
+          - Do not weaken licensing, provenance, security reporting, privacy, accessibility, or data portability.
+
+          ## Definition of done
+
+          A change is done only when its behavior matches accepted ADRs and the OpenAPI contract, production paths enforce stated invariants, runtime validation and deterministic tests exist, migrations and recovery are documented, accessibility and localization impacts are handled, privacy and security implications are reviewed, and self-hosting remains reproducible.
+
+          When information is missing, stop at the exact gap and propose the smallest decision needed. Do not silently guess.
+          EOF
+          cat > README.md <<'EOF'
+          # Rumpun Community
+
+          Rumpun Community is a community-maintained, AGPL-3.0-only family tree builder focused on genealogy fundamentals, evidence, interoperability, accessibility, and self-hosting.
+
+          The project models people, varied family relationships, genealogical facts, sources, citations, confidence, uncertainty, media supporting genealogy records, and GEDCOM data exchange. It preserves ambiguity instead of inventing certainty and uses synthetic data in repository fixtures.
+
+          ## Status
+
+          Architecture decisions and the initial OpenAPI contract are accepted on the `develop` branch. Implementation should follow `AGENTS.md`, accepted ADRs under `docs/adr/`, and the bounded delivery order in `ROADMAP.md`.
+
+          ## Repository principles
+
+          - portable data and documented migrations
+          - provenance and citations
+          - secure defaults and minimal personal-data exposure
+          - accessible and localizable core flows
+          - practical installation, backup, restore, and recovery
+          - public, reviewable architecture and source provenance
+
+          See [CONTRIBUTING.md](CONTRIBUTING.md), [GOVERNANCE.md](GOVERNANCE.md), [SECURITY.md](SECURITY.md), and [docs/PRODUCT_BOUNDARY.md](docs/PRODUCT_BOUNDARY.md).
+          EOF
+          cat > ROADMAP.md <<'EOF'
+          # Roadmap
+
+          ## Phase 0: Foundation
+
+          - establish the accepted monorepo, runtime, CI, local services, and quality gates
+          - validate the OpenAPI contract and runtime schemas
+          - define the PostgreSQL schema, migrations, synthetic fixtures, and singleton-tree invariant
+          - implement local authentication, server-side sessions, CSRF, and OPA integration
+
+          ## Phase 1: Genealogy core
+
+          - people and flexible typed relationships
+          - names, life facts, places, sources, citations, and confidence
+          - uncertainty, conflicting claims, validation, and change history
+          - accessible multi-generation navigation and structured alternatives
+
+          ## Phase 2: Portability
+
+          - GEDCOM dry-run, diagnostics, explicit import commit, and export
+          - backup, restore, and documented migrations
+          - search and filters
+          - private media attachments supporting genealogy records
+
+          ## Phase 3: Collaboration and operations
+
+          - invitations, roles, and edit review
+          - practical self-hosting and upgrade guidance
+          - localization workflow
+          - measured Redis caching for eligible reproducible reads
+          - stable documented extension points
+
+          Work outside this roadmap requires a public proposal and, when architectural, a focused ADR.
+          EOF
+          cat > docs/PRODUCT_BOUNDARY.md <<'EOF'
+          # Product Boundary
+
+          Rumpun Community is a community-maintained family tree builder.
+
+          Its scope is genealogy: people, names, varied family relationships, genealogical facts and events, places, sources, repositories, citations, notes, confidence, uncertainty, supporting media, collaboration required to maintain one shared tree, GEDCOM interoperability, accessibility, localization, and self-hosting operations.
+
+          A proposal belongs in this repository when its primary value improves genealogy correctness, evidence, interoperability, accessibility, portability, or self-hosting. Work outside this documented scope requires a public issue and, when it changes architecture, data, trust boundaries, or operations, a focused ADR.
+
+          This repository is the complete source of product scope. Contributors and agents must not infer requirements from any external or non-public project material.
+          EOF
+          cat > GOVERNANCE.md <<'EOF'
+          # Governance
+
+          Rumpun Community uses public repository history, issues, pull requests, and ADRs as its decision record.
+
+          ## Current decision authority
+
+          Until a contributor community and maintainer group exist, the initial maintainer may accept bounded decisions directly and must record them publicly in the repository. This temporary model must not bypass licensing, provenance, security, privacy, accessibility, or portability review.
+
+          ## Architectural decisions
+
+          Material changes to the stack, public contracts, persistent services, data model, trust boundaries, self-hosting burden, or long-term maintenance require an ADR. Accepted ADRs remain authoritative until superseded by another accepted ADR with migration and rollback impact.
+
+          ## Contributions
+
+          Contributions are reviewed on technical merit, product scope, provenance, tests, accessibility, security, privacy, data portability, and operational impact. All design and implementation inputs must be public and reviewable from this repository or cited public standards and dependencies.
+          EOF
+          cat > docs/CODE_PROVENANCE.md <<'EOF'
+          # Code Provenance
+
+          Every contribution must have reviewable provenance.
+
+          Contributors confirm that they authored the work or have the right to submit it under AGPL-3.0-only, identify copied or adapted third-party material with source and license, and disclose generated material and its inputs where required by the contribution process.
+
+          Do not reproduce, paraphrase, or derive work from confidential, inaccessible, or non-public material. Work only from this repository, cited public standards, and public upstream dependency documentation needed for the task. When provenance is uncertain, stop and request maintainer review.
+          EOF
+          cat > docs/SUPPLY_CHAIN_TRANSPARENCY.md <<'EOF'
+          # Supply Chain Transparency
+
+          The project records direct and transitive dependencies through reproducible lockfiles, reviewed manifests, source provenance, and release evidence.
+
+          Releases should generate an SBOM in an open machine-readable format, link artifacts to source commits and build records, document known exceptions, verify licenses, pin reviewed versions, and avoid inaccessible packages, registries, APIs, or infrastructure.
+          EOF
+          cat > docs/adr/0000-project-foundation-and-stack-neutrality.md <<'EOF'
+          # ADR-0000: Project foundation and initial decision discipline
+
+          - Status: Accepted
+          - Date: 2026-08-07
+          - Deciders: Initial Rumpun Community maintainer
+          - Partially superseded by: ADR-0002
+
+          ## Context
+
+          Rumpun Community began as a new community-maintained genealogy project without an implementation. The repository needed explicit product scope, architecture principles, public provenance, and a reviewable process before selecting technologies.
+
+          ## Decision
+
+          Rumpun Community is an AGPL-3.0-only genealogy project with its own public repository, architecture, data model, APIs, dependencies, roadmap, and release history.
+
+          Architectural decisions are recorded as ADRs. Before a stack ADR was accepted, work remained stack-neutral and focused on genealogy requirements, portability, accessibility, security, privacy, self-hosting, and interoperability. ADR-0002 supersedes that temporary restriction and authorizes implementation within its accepted boundaries.
+
+          Agents and contributors use only this repository, cited public standards, and public upstream dependency documentation required by their task. Unknown requirements are not inferred.
+
+          ## Consequences
+
+          Decisions are explicit and reviewable. New services, trust boundaries, persistent data changes, public contracts, or substantial operational burdens require focused ADRs with migration and rollback impact.
+
+          ## Validation
+
+          Repository changes follow accepted ADRs, preserve product scope and provenance, use synthetic fixtures, and keep architecture decisions public.
+          EOF
+          cat > docs/adr/0001-repository-independence-and-code-provenance.md <<'EOF'
+          # ADR-0001: Repository independence and code provenance
+
+          - Status: Accepted
+          - Date: 2026-08-07
+          - Deciders: Initial Rumpun Community maintainer
+
+          ## Context
+
+          A public community project needs auditable provenance and must not depend on inaccessible material, privileged specifications, undocumented compatibility requirements, or private infrastructure.
+
+          ## Decision
+
+          This repository is the complete product and architecture authority for Rumpun Community.
+
+          1. Contributions must be authored by the contributor or submitted under a compatible license with recorded provenance.
+          2. Generated, copied, or adapted material must identify its public source, inputs, license, and relevant obligations.
+          3. Confidential, inaccessible, or non-public material must not be reproduced, paraphrased, inferred, or used to direct implementation.
+          4. Public standards and public upstream dependency documentation may be used and cited.
+          5. APIs, schemas, tests, designs, fixtures, prompts, assets, and compatibility requirements must originate from public repository decisions.
+          6. Releases publish dependency manifests and should publish SBOM and build provenance.
+
+          ## Consequences
+
+          Contributors can audit why code exists and where it came from. Work stops when required authority is unavailable instead of inventing requirements.
+
+          ## Validation
+
+          Pull requests declare provenance, CI verifies dependency and license records, fixtures remain synthetic, and repository searches find no inaccessible source assumptions.
+          EOF
+          cat > .github/PULL_REQUEST_TEMPLATE.md <<'EOF'
+          ## Scope
+
+          What bounded Rumpun Community outcome does this change deliver?
+
+          ## Authority
+
+          List accepted ADRs, OpenAPI operations, public standards, and repository issues used.
+
+          ## Verification
+
+          List commands, tests, migration checks, accessibility checks, and failure scenarios.
+
+          ## Impact
+
+          Describe security, privacy, data portability, localization, accessibility, self-hosting, migration, rollback, and operator impact.
+
+          ## Provenance checklist
+
+          - [ ] All inputs are from this repository, cited public standards, or public upstream dependency documentation.
+          - [ ] Copied, adapted, and generated material is disclosed with source and license.
+          - [ ] Fixtures are synthetic and contain no real personal or family data.
+          - [ ] No inaccessible or non-public material shaped this change.
+          - [ ] The change matches accepted ADRs and the OpenAPI contract, or includes the required focused ADR update.
+          EOF
+          python <<'PY'
+          from pathlib import Path
+          import re
+          files = [p for p in Path('.').rglob('*') if p.is_file() and '.git' not in p.parts]
+          replacements = [
+              (r'proprietary Rumpun', 'any external project'),
+              (r'Proprietary Rumpun', 'Any external project'),
+              (r'commercial Rumpun', 'any external project'),
+              (r'commercial product', 'external project'),
+              (r'commercial-product', 'external-project'),
+              (r'private family archive', 'external project'),
+              (r'oral[- ]histor(?:y|ies)', 'undocumented capability'),
+              (r'heirloom(?: stories| narratives|s)?', 'undocumented capability'),
+              (r'time capsules?', 'undocumented capability'),
+              (r'memorial experiences?', 'undocumented capability'),
+              (r'zero[- ]knowledge', 'undocumented capability'),
+          ]
+          for p in files:
+              if p.as_posix() == '.github/workflows/sanitize-community-repo-once.yml':
+                  continue
+              try:
+                  text = p.read_text()
+              except UnicodeDecodeError:
+                  continue
+              old = text
+              for pattern, replacement in replacements:
+                  text = re.sub(pattern, replacement, text, flags=re.I)
+              text = re.sub(r'(undocumented capability)(?:,?\s+(?:and\s+)?undocumented capability)+', r'\1', text, flags=re.I)
+              if text != old:
+                  p.write_text(text)
+          PY
+          rm .github/workflows/sanitize-community-repo-once.yml
+          forbidden='proprietary[[:space:]-]+rumpun|commercial[[:space:]-]+rumpun|oral[- ]histor(y|ies)|heirloom|time[[:space:]-]+capsule|memorial[[:space:]-]+experience|zero[- ]knowledge|private[[:space:]-]+family[[:space:]-]+archive'
+          if git grep -Ein "$forbidden" -- ':!.github/workflows/sanitize-community-repo-once.yml'; then
+            echo 'Forbidden external scope references remain' >&2
+            exit 1
+          fi
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add -A
+          git commit -m "docs: remove external product references from Community repo"
+          git push origin HEAD:develop
