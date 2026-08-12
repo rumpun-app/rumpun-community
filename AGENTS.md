@@ -18,18 +18,18 @@ Use synthetic data only. Never commit real family records or personal data.
 
 Accepted ADRs under `docs/adr/` are binding implementation decisions. Read every ADR relevant to the assigned slice before editing code. Do not reopen an accepted decision inside an implementation pull request. If implementation evidence shows that a decision is unsafe or unworkable, propose a superseding ADR with migration and rollback impact.
 
-ADR-0000 remains authoritative for decision discipline, but its temporary stack-neutrality restriction is superseded by accepted ADR-0002. Implementation may proceed within accepted boundaries.
+ADR-0000 remains authoritative for decision discipline, but its temporary stack-neutrality restriction is superseded by accepted ADR-0002. ADR-0009 temporarily supersedes ADR-0002 only for the database used during the initial implementation stage.
 
 ## Accepted architecture
 
 - Monorepo with TypeScript applications and narrowly scoped shared packages.
-- `apps/web`: Next.js frontend. It never connects directly to PostgreSQL, OPA, Redis, or S3-compatible storage.
+- `apps/web`: Next.js frontend. It never connects directly to SQLite, OPA, Redis, or S3-compatible storage.
 - `apps/api`: Express canonical backend, authentication authority, policy enforcement point, transaction owner, and integration boundary.
-- PostgreSQL is the authoritative transactional store.
+- SQLite is the authoritative structured store for the initial implementation stage. PostgreSQL is deferred and must not be claimed or implemented without a new accepted ADR and tested migration plan.
 - One deployment supports exactly one top-level family tree. Keep an explicit stable tree ID and scope.
 - OPA is the policy decision point. Express supplies trusted facts and fails closed on missing, malformed, unavailable, or denied decisions.
-- Authentication uses local email/password credentials with Argon2id and opaque server-side sessions stored in PostgreSQL. Browser sessions use hardened HttpOnly cookies and CSRF protection, never browser token storage.
-- S3-compatible private object storage holds binary bytes. PostgreSQL remains authoritative for media metadata and lifecycle.
+- Authentication uses local email/password credentials with Argon2id and opaque server-side sessions stored in SQLite. Browser sessions use hardened HttpOnly cookies and CSRF protection, never browser token storage.
+- S3-compatible private object storage holds binary bytes. SQLite remains authoritative for media metadata and lifecycle during this stage.
 - Redis is disposable cache only. It is never authoritative for sessions, permissions, jobs, locks, audit records, genealogy data, or recovery.
 - `apps/web` uses repository-owned shadcn/ui components with the pinned `new-york` style, Base UI primitives, Tailwind CSS, and semantic tokens.
 - `packages/contracts/openapi/openapi.yaml` is the initial HTTP contract. Runtime validation is required; generated TypeScript types are not validation.
@@ -39,6 +39,7 @@ ADR-0000 remains authoritative for decision discipline, but its temporary stack-
 - Browser code communicates with Express through the documented API only.
 - Routes stay thin and delegate to explicit application and domain modules.
 - Shared transport contracts must not replace domain entities or expose persistence row shapes.
+- Domain and application services must not import a SQLite driver; persistence stays behind explicit backend repository ports.
 - Account identity and genealogy person identity remain separate.
 - Genealogy facts preserve uncertainty, conflicting claims, original values, sources, citations, and confidence.
 - A top-level tree is not a household, surname, lineage branch, or GEDCOM `FAM` record.
@@ -59,10 +60,20 @@ ADR-0000 remains authoritative for decision discipline, but its temporary stack-
 9. Report changed files, commands, results, migration and rollback impact, security and privacy impact, and remaining exclusions.
 10. Do not merge, force-push reviewed history, weaken gates, or mark incomplete work production-ready without maintainer approval.
 
+## Parallel agent execution
+
+- The Backend agent owns root tooling, `apps/api`, `db`, backend packages, OPA policy, and generated contract artifacts.
+- The Frontend agent owns only `apps/web` during parallel implementation.
+- Both agents treat `packages/contracts/openapi/openapi.yaml` as immutable unless the maintainer explicitly approves a contract change.
+- Agents work from the exact assigned base on separate branches and coordinate through operation IDs and schemas, not undocumented assumptions.
+- Neither agent edits the other agent's owned files. Integration conflicts are reported to the maintainer with exact paths and contract operations.
+
+Use `docs/agent-prompts/frontend-agent.md` and `docs/agent-prompts/backend-agent.md` for the initial parallel assignments.
+
 ## Implementation order
 
-1. Foundation: package manager, workspace runner, pinned runtime versions, lint/type/test/build tooling, dependency boundaries, OpenAPI validation, local containers, and CI.
-2. Persistence and singleton tree: PostgreSQL schema, migrations, synthetic fixtures, bootstrap invariants, and backup/restore skeleton.
+1. Foundation: package manager, workspace runner, pinned runtime versions, lint/type/test/build tooling, dependency boundaries, OpenAPI validation, local services, and CI.
+2. Persistence and singleton tree: SQLite schema, migrations, synthetic fixtures, bootstrap invariants, and backup/restore skeleton.
 3. Authentication and authorization: first-admin bootstrap, accounts, invitations, opaque sessions, CSRF, OPA contracts, policy tests, and fail-closed integration.
 4. Genealogy core: people, names, typed relationships, facts, sources, citations, confidence, uncertainty, and change history.
 5. Accessible web vertical slice using shadcn/ui without moving authority into the frontend.
@@ -74,7 +85,7 @@ Do not implement the whole system in one pull request.
 
 ## Quality gates
 
-Every affected slice must include applicable formatting, linting, TypeScript, build, dependency-boundary, OpenAPI, migration, database integration, OPA, authentication, accessibility, storage, GEDCOM, cache-failure, and synthetic-fixture checks. Skipped, disabled, or model-only tests do not prove production behavior.
+Every affected slice must include applicable formatting, linting, TypeScript, build, dependency-boundary, OpenAPI, migration, database integration, OPA, authentication, accessibility, storage, GEDCOM, cache-failure, and synthetic-fixture checks. SQLite work must additionally prove foreign-key enforcement, transaction rollback, concurrent singleton/bootstrap behavior, restart-safe idempotency, backup/restore, and no committed database files. Skipped, disabled, or model-only tests do not prove production behavior.
 
 ## Security and privacy guardrails
 
