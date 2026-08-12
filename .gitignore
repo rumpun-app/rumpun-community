@@ -16,3 +16,21 @@ Thumbs.db
 .tmp/
 tmp/
 coverage/
+
+# Node
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+
+# SQLite database files
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+*.tmp.db
+
+# Environment
+.env.local
+.env.production

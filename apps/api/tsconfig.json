@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "paths": {
+      "@rumpun/contracts": ["../../packages/contracts/src"],
+      "@rumpun/genealogy": ["../../packages/genealogy/src"],
+      "@rumpun/test-fixtures": ["../../packages/test-fixtures/src"]
+    }
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../../packages/contracts" },
+    { "path": "../../packages/genealogy" },
+    { "path": "../../packages/test-fixtures" }
+  ]
+}
