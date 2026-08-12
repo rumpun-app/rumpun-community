@@ -1,8 +1,8 @@
 # ADR-0005: Local authentication and server-side session management
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-08-12
-- Deciders: Community review
+- Deciders: Initial Rumpun Community maintainer
 - Depends on: ADR-0002, ADR-0003, ADR-0004
 
 ## Context

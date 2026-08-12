@@ -1,8 +1,8 @@
 # ADR-0002: Initial application architecture and technology stack
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-08-10
-- Deciders: Community review
+- Deciders: Initial Rumpun Community maintainer
 - Supersedes: The stack-neutrality constraint in ADR-0000 after this ADR is accepted
 
 ## Context
