@@ -1,0 +1,1281 @@
+openapi: 3.1.0
+info:
+  title: Rumpun Community API
+  version: 1.0.0-draft
+  summary: Genealogy and interoperability API for Rumpun Community
+  description: |
+    Contract for the community-maintained, self-hostable genealogy product.
+    The API preserves ambiguity, provenance, and explicit relationship meaning.
+    It does not expose proprietary Rumpun family-archive capabilities.
+  license:
+    name: AGPL-3.0-only
+    identifier: AGPL-3.0-only
+servers:
+  - url: /api/v1
+    description: Same-origin self-hosted installation
+security:
+  - bearerAuth: []
+tags:
+  - name: Trees
+  - name: People
+  - name: Relationships
+  - name: Facts
+  - name: Places
+  - name: Sources
+  - name: Citations
+  - name: Traversal
+  - name: Search
+  - name: Changes
+  - name: GEDCOM
+paths:
+  /trees:
+    get:
+      tags: [Trees]
+      operationId: listTrees
+      summary: List trees visible to the caller
+      parameters:
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Trees
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TreeCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Trees]
+      operationId: createTree
+      summary: Create a family tree
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TreeInput'
+      responses:
+        '201':
+          description: Tree created
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Location:
+              schema: { type: string, format: uri-reference }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tree'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+    get:
+      tags: [Trees]
+      operationId: getTree
+      summary: Get a tree
+      responses:
+        '200':
+          description: Tree
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tree'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Trees]
+      operationId: updateTree
+      summary: Update tree metadata
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/TreePatch'
+      responses:
+        '200':
+          description: Tree updated
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tree'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/people:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+    get:
+      tags: [People]
+      operationId: listPeople
+      summary: List people in a tree
+      parameters:
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageSize'
+        - name: livingStatus
+          in: query
+          schema:
+            $ref: '#/components/schemas/LivingStatus'
+        - name: changedSince
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: People
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [People]
+      operationId: createPerson
+      summary: Create a person without inferring relationships
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonInput'
+      responses:
+        '201':
+          description: Person created
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Location:
+              schema: { type: string, format: uri-reference }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '409':
+          description: Potential duplicate requires explicit resolution
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/DuplicateProblem'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/people/{personId}:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+      - $ref: '#/components/parameters/PersonId'
+    get:
+      tags: [People]
+      operationId: getPerson
+      summary: Get a person
+      responses:
+        '200':
+          description: Person
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        default:
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [People]
+      operationId: updatePerson
+      summary: Update a person
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/PersonPatch'
+      responses:
+        '200':
+          description: Person updated
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Person'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/relationships:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+    get:
+      tags: [Relationships]
+      operationId: listRelationships
+      summary: List explicit relationships
+      parameters:
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageSize'
+        - name: personId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/RelationshipType'
+      responses:
+        '200':
+          description: Relationships
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelationshipCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Relationships]
+      operationId: createRelationship
+      summary: Create an explicitly typed relationship
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelationshipInput'
+      responses:
+        '201':
+          description: Relationship created
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Location:
+              schema: { type: string, format: uri-reference }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Relationship'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/relationships/{relationshipId}:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+      - $ref: '#/components/parameters/RelationshipId'
+    patch:
+      tags: [Relationships]
+      operationId: updateRelationship
+      summary: Update relationship evidence or status
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/RelationshipPatch'
+      responses:
+        '200':
+          description: Relationship updated
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Relationship'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        default:
+          $ref: '#/components/responses/Problem'
+    delete:
+      tags: [Relationships]
+      operationId: deleteRelationship
+      summary: Remove a relationship assertion without deleting its people
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      responses:
+        '204': { description: Relationship removed }
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/facts:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+    get:
+      tags: [Facts]
+      operationId: listFacts
+      summary: List asserted genealogical facts
+      parameters:
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageSize'
+        - name: subjectType
+          in: query
+          schema: { type: string, enum: [person, relationship] }
+        - name: subjectId
+          in: query
+          schema: { type: string, format: uuid }
+        - name: type
+          in: query
+          schema:
+            $ref: '#/components/schemas/FactType'
+      responses:
+        '200':
+          description: Facts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FactCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Facts]
+      operationId: createFact
+      summary: Assert a fact without replacing conflicting assertions
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FactInput'
+      responses:
+        '201':
+          description: Fact created
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Location:
+              schema: { type: string, format: uri-reference }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fact'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/facts/{factId}:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+      - $ref: '#/components/parameters/FactId'
+    patch:
+      tags: [Facts]
+      operationId: updateFact
+      summary: Update a fact assertion
+      parameters:
+        - $ref: '#/components/parameters/IfMatch'
+      requestBody:
+        required: true
+        content:
+          application/merge-patch+json:
+            schema:
+              $ref: '#/components/schemas/FactPatch'
+      responses:
+        '200':
+          description: Fact updated
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Fact'
+        '412':
+          $ref: '#/components/responses/PreconditionFailed'
+        '428':
+          $ref: '#/components/responses/PreconditionRequired'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/places:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+    get:
+      tags: [Places]
+      operationId: listPlaces
+      parameters:
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Places
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Places]
+      operationId: createPlace
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceInput'
+      responses:
+        '201':
+          description: Place created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Place'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/sources:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+    get:
+      tags: [Sources]
+      operationId: listSources
+      parameters:
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Sources
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SourceCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Sources]
+      operationId: createSource
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceInput'
+      responses:
+        '201':
+          description: Source created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/citations:
+    parameters:
+      - $ref: '#/components/parameters/TreeId'
+    get:
+      tags: [Citations]
+      operationId: listCitations
+      parameters:
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageSize'
+        - name: targetType
+          in: query
+          schema: { type: string, enum: [person, relationship, fact] }
+        - name: targetId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Citations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CitationCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+    post:
+      tags: [Citations]
+      operationId: createCitation
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CitationInput'
+      responses:
+        '201':
+          description: Citation created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Citation'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/traversal:
+    get:
+      tags: [Traversal]
+      operationId: traverseTree
+      summary: Return a bounded ancestor or descendant graph
+      parameters:
+        - $ref: '#/components/parameters/TreeId'
+        - name: rootPersonId
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: direction
+          in: query
+          required: true
+          schema: { type: string, enum: [ancestors, descendants, both] }
+        - name: generations
+          in: query
+          required: true
+          schema: { type: integer, minimum: 1, maximum: 10 }
+        - name: relationshipTypes
+          in: query
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/RelationshipType'
+          style: form
+          explode: false
+      responses:
+        '200':
+          description: Bounded graph
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraversalGraph'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/search:
+    get:
+      tags: [Search]
+      operationId: searchTree
+      summary: Search genealogy records in a tree
+      parameters:
+        - $ref: '#/components/parameters/TreeId'
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 2, maxLength: 200 }
+        - name: types
+          in: query
+          schema:
+            type: array
+            items: { type: string, enum: [person, place, source] }
+          style: form
+          explode: false
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageSize'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResultCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/changes:
+    get:
+      tags: [Changes]
+      operationId: listChanges
+      summary: List append-only change history visible to the caller
+      parameters:
+        - $ref: '#/components/parameters/TreeId'
+        - $ref: '#/components/parameters/PageCursor'
+        - $ref: '#/components/parameters/PageSize'
+        - name: entityType
+          in: query
+          schema: { type: string, enum: [tree, person, relationship, fact, place, source, citation, import] }
+        - name: entityId
+          in: query
+          schema: { type: string, format: uuid }
+      responses:
+        '200':
+          description: Change history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangeCollection'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/gedcom/imports:
+    post:
+      tags: [GEDCOM]
+      operationId: analyzeGedcomImport
+      summary: Upload and analyze GEDCOM without mutating the tree
+      parameters:
+        - $ref: '#/components/parameters/TreeId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                declaredVersion:
+                  type: [string, 'null']
+                  maxLength: 40
+                duplicatePolicy:
+                  type: string
+                  enum: [report_only]
+                  default: report_only
+      responses:
+        '202':
+          description: Analysis job accepted
+          headers:
+            Location:
+              schema: { type: string, format: uri-reference }
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GedcomImportJob'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/gedcom/imports/{importId}:
+    get:
+      tags: [GEDCOM]
+      operationId: getGedcomImport
+      parameters:
+        - $ref: '#/components/parameters/TreeId'
+        - $ref: '#/components/parameters/ImportId'
+      responses:
+        '200':
+          description: Import analysis or commit status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GedcomImportJob'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/gedcom/imports/{importId}/commit:
+    post:
+      tags: [GEDCOM]
+      operationId: commitGedcomImport
+      summary: Commit a successfully analyzed import
+      parameters:
+        - $ref: '#/components/parameters/TreeId'
+        - $ref: '#/components/parameters/ImportId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [analysisRevision, duplicateResolutions]
+              properties:
+                analysisRevision: { type: string, minLength: 1 }
+                duplicateResolutions:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/DuplicateResolution'
+      responses:
+        '202':
+          description: Commit job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GedcomImportJob'
+        '409':
+          description: Analysis is stale or unresolved duplicates remain
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/gedcom/exports:
+    post:
+      tags: [GEDCOM]
+      operationId: createGedcomExport
+      summary: Create a bounded, version-specific GEDCOM export
+      parameters:
+        - $ref: '#/components/parameters/TreeId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [version, livingPeoplePolicy]
+              properties:
+                version: { type: string, enum: ['5.5.1', '7.0'] }
+                livingPeoplePolicy: { type: string, enum: [include, redact, exclude] }
+                rootPersonId: { type: [string, 'null'], format: uuid }
+                generations: { type: [integer, 'null'], minimum: 1, maximum: 20 }
+      responses:
+        '202':
+          description: Export job accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GedcomExportJob'
+        default:
+          $ref: '#/components/responses/Problem'
+  /trees/{treeId}/gedcom/exports/{exportId}:
+    get:
+      tags: [GEDCOM]
+      operationId: getGedcomExport
+      parameters:
+        - $ref: '#/components/parameters/TreeId'
+        - $ref: '#/components/parameters/ExportId'
+      responses:
+        '200':
+          description: Export status and temporary download URL when ready
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GedcomExportJob'
+        default:
+          $ref: '#/components/responses/Problem'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+  headers:
+    ETag:
+      description: Strong validator for optimistic concurrency
+      schema: { type: string }
+  parameters:
+    TreeId:
+      name: treeId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PersonId:
+      name: personId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    RelationshipId:
+      name: relationshipId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    FactId:
+      name: factId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ImportId:
+      name: importId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ExportId:
+      name: exportId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    PageCursor:
+      name: pageCursor
+      in: query
+      schema: { type: string, maxLength: 500 }
+    PageSize:
+      name: pageSize
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 25 }
+    IfMatch:
+      name: If-Match
+      in: header
+      required: true
+      schema: { type: string }
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: Unique key retained by the server for safe retries
+      schema: { type: string, minLength: 16, maxLength: 200 }
+  responses:
+    Problem:
+      description: Request failed
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionFailed:
+      description: Resource changed since the supplied ETag
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+    PreconditionRequired:
+      description: If-Match is required
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+  schemas:
+    Metadata:
+      type: object
+      required: [createdAt, updatedAt, revision]
+      properties:
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        revision: { type: integer, minimum: 1 }
+    Page:
+      type: object
+      additionalProperties: false
+      required: [hasMore]
+      properties:
+        nextCursor: { type: [string, 'null'] }
+        hasMore: { type: boolean }
+    TreeInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: [string, 'null'], maxLength: 2000 }
+        defaultLocale: { type: string, pattern: '^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$' }
+    TreePatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, maxLength: 200 }
+        description: { type: [string, 'null'], maxLength: 2000 }
+        defaultLocale: { type: string }
+    Tree:
+      allOf:
+        - $ref: '#/components/schemas/TreeInput'
+        - type: object
+          required: [id, metadata]
+          properties:
+            id: { type: string, format: uuid }
+            metadata: { $ref: '#/components/schemas/Metadata' }
+    TreeCollection:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Tree' } }
+        page: { $ref: '#/components/schemas/Page' }
+    LivingStatus:
+      type: string
+      enum: [living, deceased, unknown]
+    NameType:
+      type: string
+      enum: [primary, birth, married, alias, religious, transliteration, other]
+    PersonName:
+      type: object
+      additionalProperties: false
+      required: [type, display]
+      properties:
+        id: { type: string, format: uuid, readOnly: true }
+        type: { $ref: '#/components/schemas/NameType' }
+        display: { type: string, minLength: 1, maxLength: 500 }
+        given: { type: [string, 'null'], maxLength: 200 }
+        surname: { type: [string, 'null'], maxLength: 200 }
+        prefix: { type: [string, 'null'], maxLength: 100 }
+        suffix: { type: [string, 'null'], maxLength: 100 }
+        script: { type: [string, 'null'], maxLength: 50 }
+        language: { type: [string, 'null'], maxLength: 50 }
+    PersonInput:
+      type: object
+      additionalProperties: false
+      required: [names, livingStatus]
+      properties:
+        names:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items: { $ref: '#/components/schemas/PersonName' }
+        livingStatus: { $ref: '#/components/schemas/LivingStatus' }
+        sexAtBirth: { type: [string, 'null'], enum: [female, male, intersex, unknown, null] }
+        gender: { type: [string, 'null'], maxLength: 100 }
+        private: { type: boolean, default: false }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+    PersonPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        names: { type: array, minItems: 1, maxItems: 50, items: { $ref: '#/components/schemas/PersonName' } }
+        livingStatus: { $ref: '#/components/schemas/LivingStatus' }
+        sexAtBirth: { type: [string, 'null'], enum: [female, male, intersex, unknown, null] }
+        gender: { type: [string, 'null'], maxLength: 100 }
+        private: { type: boolean }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+    Person:
+      allOf:
+        - $ref: '#/components/schemas/PersonInput'
+        - type: object
+          required: [id, treeId, metadata]
+          properties:
+            id: { type: string, format: uuid }
+            treeId: { type: string, format: uuid }
+            metadata: { $ref: '#/components/schemas/Metadata' }
+    PersonCollection:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Person' } }
+        page: { $ref: '#/components/schemas/Page' }
+    RelationshipType:
+      type: string
+      description: Clients must tolerate future values.
+      enum: [biological_parent, adoptive_parent, foster_parent, guardian, spouse, partner, step_parent, other]
+    RelationshipStatus:
+      type: string
+      enum: [asserted, disputed, rejected]
+    RelationshipParticipant:
+      type: object
+      additionalProperties: false
+      required: [personId, role]
+      properties:
+        personId: { type: string, format: uuid }
+        role: { type: string, enum: [parent, child, partner, guardian, ward, participant] }
+    RelationshipInput:
+      type: object
+      additionalProperties: false
+      required: [type, participants, status]
+      properties:
+        type: { $ref: '#/components/schemas/RelationshipType' }
+        participants:
+          type: array
+          minItems: 2
+          maxItems: 10
+          items: { $ref: '#/components/schemas/RelationshipParticipant' }
+        status: { $ref: '#/components/schemas/RelationshipStatus' }
+        confidence: { type: [string, 'null'], enum: [low, medium, high, null] }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+    RelationshipPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        status: { $ref: '#/components/schemas/RelationshipStatus' }
+        confidence: { type: [string, 'null'], enum: [low, medium, high, null] }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+    Relationship:
+      allOf:
+        - $ref: '#/components/schemas/RelationshipInput'
+        - type: object
+          required: [id, treeId, metadata]
+          properties:
+            id: { type: string, format: uuid }
+            treeId: { type: string, format: uuid }
+            metadata: { $ref: '#/components/schemas/Metadata' }
+    RelationshipCollection:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Relationship' } }
+        page: { $ref: '#/components/schemas/Page' }
+    HistoricalDate:
+      type: object
+      additionalProperties: false
+      required: [qualifier, precision, originalText]
+      description: Preserves what is known without inventing missing components.
+      properties:
+        qualifier: { type: string, enum: [exact, about, before, after, between, calculated, estimated, text_only, unknown] }
+        precision: { type: string, enum: [day, month, year, range, text, unknown] }
+        originalText: { type: [string, 'null'], maxLength: 500 }
+        calendar: { type: string, default: gregorian, maxLength: 50 }
+        start: { type: [string, 'null'], format: date }
+        end: { type: [string, 'null'], format: date }
+    FactType:
+      type: string
+      description: Clients must tolerate future genealogy fact types.
+      enum: [birth, death, burial, cremation, marriage, divorce, residence, occupation, education, religion, nationality, immigration, emigration, custom]
+    FactInput:
+      type: object
+      additionalProperties: false
+      required: [subjectType, subjectId, type, status]
+      properties:
+        subjectType: { type: string, enum: [person, relationship] }
+        subjectId: { type: string, format: uuid }
+        type: { $ref: '#/components/schemas/FactType' }
+        customType: { type: [string, 'null'], maxLength: 100 }
+        value: { type: [string, 'null'], maxLength: 2000 }
+        date: { oneOf: [{ $ref: '#/components/schemas/HistoricalDate' }, { type: 'null' }] }
+        placeId: { type: [string, 'null'], format: uuid }
+        status: { type: string, enum: [asserted, disputed, rejected] }
+        confidence: { type: [string, 'null'], enum: [low, medium, high, null] }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+    FactPatch:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        value: { type: [string, 'null'], maxLength: 2000 }
+        date: { oneOf: [{ $ref: '#/components/schemas/HistoricalDate' }, { type: 'null' }] }
+        placeId: { type: [string, 'null'], format: uuid }
+        status: { type: string, enum: [asserted, disputed, rejected] }
+        confidence: { type: [string, 'null'], enum: [low, medium, high, null] }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+    Fact:
+      allOf:
+        - $ref: '#/components/schemas/FactInput'
+        - type: object
+          required: [id, treeId, metadata]
+          properties:
+            id: { type: string, format: uuid }
+            treeId: { type: string, format: uuid }
+            metadata: { $ref: '#/components/schemas/Metadata' }
+    FactCollection:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Fact' } }
+        page: { $ref: '#/components/schemas/Page' }
+    PlaceInput:
+      type: object
+      additionalProperties: false
+      required: [name]
+      properties:
+        name: { type: string, minLength: 1, maxLength: 500 }
+        type: { type: [string, 'null'], enum: [address, locality, region, country, historical, other, null] }
+        parentPlaceId: { type: [string, 'null'], format: uuid }
+        latitude: { type: [number, 'null'], minimum: -90, maximum: 90 }
+        longitude: { type: [number, 'null'], minimum: -180, maximum: 180 }
+        from: { oneOf: [{ $ref: '#/components/schemas/HistoricalDate' }, { type: 'null' }] }
+        to: { oneOf: [{ $ref: '#/components/schemas/HistoricalDate' }, { type: 'null' }] }
+    Place:
+      allOf:
+        - $ref: '#/components/schemas/PlaceInput'
+        - type: object
+          required: [id, treeId, metadata]
+          properties:
+            id: { type: string, format: uuid }
+            treeId: { type: string, format: uuid }
+            metadata: { $ref: '#/components/schemas/Metadata' }
+    PlaceCollection:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Place' } }
+        page: { $ref: '#/components/schemas/Page' }
+    SourceInput:
+      type: object
+      additionalProperties: false
+      required: [title]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 1000 }
+        author: { type: [string, 'null'], maxLength: 500 }
+        publisher: { type: [string, 'null'], maxLength: 500 }
+        publicationDate: { oneOf: [{ $ref: '#/components/schemas/HistoricalDate' }, { type: 'null' }] }
+        repository: { type: [string, 'null'], maxLength: 500 }
+        callNumber: { type: [string, 'null'], maxLength: 500 }
+        url: { type: [string, 'null'], format: uri, maxLength: 2000 }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+    Source:
+      allOf:
+        - $ref: '#/components/schemas/SourceInput'
+        - type: object
+          required: [id, treeId, metadata]
+          properties:
+            id: { type: string, format: uuid }
+            treeId: { type: string, format: uuid }
+            metadata: { $ref: '#/components/schemas/Metadata' }
+    SourceCollection:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Source' } }
+        page: { $ref: '#/components/schemas/Page' }
+    CitationInput:
+      type: object
+      additionalProperties: false
+      required: [sourceId, targetType, targetId]
+      properties:
+        sourceId: { type: string, format: uuid }
+        targetType: { type: string, enum: [person, relationship, fact] }
+        targetId: { type: string, format: uuid }
+        locator: { type: [string, 'null'], maxLength: 1000 }
+        excerpt: { type: [string, 'null'], maxLength: 10000 }
+        quality: { type: [string, 'null'], enum: [primary, secondary, derivative, unknown, null] }
+        accessedAt: { type: [string, 'null'], format: date }
+        notes: { type: [string, 'null'], maxLength: 10000 }
+    Citation:
+      allOf:
+        - $ref: '#/components/schemas/CitationInput'
+        - type: object
+          required: [id, treeId, metadata]
+          properties:
+            id: { type: string, format: uuid }
+            treeId: { type: string, format: uuid }
+            metadata: { $ref: '#/components/schemas/Metadata' }
+    CitationCollection:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Citation' } }
+        page: { $ref: '#/components/schemas/Page' }
+    TraversalGraph:
+      type: object
+      required: [rootPersonId, people, relationships, truncated]
+      properties:
+        rootPersonId: { type: string, format: uuid }
+        people: { type: array, items: { $ref: '#/components/schemas/Person' } }
+        relationships: { type: array, items: { $ref: '#/components/schemas/Relationship' } }
+        truncated: { type: boolean }
+        warnings: { type: array, items: { type: string } }
+    SearchResult:
+      type: object
+      required: [type, id, label, score]
+      properties:
+        type: { type: string, enum: [person, place, source] }
+        id: { type: string, format: uuid }
+        label: { type: string }
+        context: { type: [string, 'null'] }
+        score: { type: number, minimum: 0, maximum: 1 }
+    SearchResultCollection:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/SearchResult' } }
+        page: { $ref: '#/components/schemas/Page' }
+    Change:
+      type: object
+      required: [id, occurredAt, action, entityType, entityId, actor]
+      properties:
+        id: { type: string, format: uuid }
+        occurredAt: { type: string, format: date-time }
+        action: { type: string, enum: [created, updated, deleted, imported, restored] }
+        entityType: { type: string }
+        entityId: { type: string, format: uuid }
+        actor:
+          type: object
+          required: [type, display]
+          properties:
+            type: { type: string, enum: [user, system, import] }
+            id: { type: [string, 'null'], format: uuid }
+            display: { type: string }
+        changedFields: { type: array, items: { type: string } }
+        reason: { type: [string, 'null'], maxLength: 1000 }
+    ChangeCollection:
+      type: object
+      required: [items, page]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Change' } }
+        page: { $ref: '#/components/schemas/Page' }
+    Diagnostic:
+      type: object
+      required: [severity, code, message]
+      properties:
+        severity: { type: string, enum: [info, warning, error] }
+        code: { type: string, pattern: '^[A-Z0-9_]+$' }
+        message: { type: string }
+        line: { type: [integer, 'null'], minimum: 1 }
+        recordReference: { type: [string, 'null'], maxLength: 200 }
+        path: { type: [string, 'null'], maxLength: 500 }
+        lossy: { type: boolean, default: false }
+    DuplicateCandidate:
+      type: object
+      required: [candidateId, incomingLabel, matches]
+      properties:
+        candidateId: { type: string, format: uuid }
+        incomingLabel: { type: string }
+        matches:
+          type: array
+          items:
+            type: object
+            required: [personId, score, reasons]
+            properties:
+              personId: { type: string, format: uuid }
+              score: { type: number, minimum: 0, maximum: 1 }
+              reasons: { type: array, items: { type: string } }
+    DuplicateResolution:
+      type: object
+      additionalProperties: false
+      required: [candidateId, action]
+      properties:
+        candidateId: { type: string, format: uuid }
+        action: { type: string, enum: [create_new, link_existing, skip] }
+        existingPersonId: { type: [string, 'null'], format: uuid }
+    JobStatus:
+      type: string
+      enum: [queued, running, analysis_ready, committing, completed, failed, cancelled]
+    GedcomImportJob:
+      type: object
+      required: [id, treeId, status, createdAt, diagnostics]
+      properties:
+        id: { type: string, format: uuid }
+        treeId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/JobStatus' }
+        detectedVersion: { type: [string, 'null'] }
+        analysisRevision: { type: [string, 'null'] }
+        summary:
+          type: object
+          properties:
+            recordsRead: { type: integer, minimum: 0 }
+            peopleProposed: { type: integer, minimum: 0 }
+            relationshipsProposed: { type: integer, minimum: 0 }
+            factsProposed: { type: integer, minimum: 0 }
+            unsupportedTags: { type: integer, minimum: 0 }
+        diagnostics: { type: array, items: { $ref: '#/components/schemas/Diagnostic' } }
+        duplicateCandidates: { type: array, items: { $ref: '#/components/schemas/DuplicateCandidate' } }
+        createdAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+    GedcomExportJob:
+      type: object
+      required: [id, treeId, status, version, createdAt, diagnostics]
+      properties:
+        id: { type: string, format: uuid }
+        treeId: { type: string, format: uuid }
+        status: { $ref: '#/components/schemas/JobStatus' }
+        version: { type: string }
+        downloadUrl: { type: [string, 'null'], format: uri }
+        downloadExpiresAt: { type: [string, 'null'], format: date-time }
+        diagnostics: { type: array, items: { $ref: '#/components/schemas/Diagnostic' } }
+        createdAt: { type: string, format: date-time }
+        finishedAt: { type: [string, 'null'], format: date-time }
+    ValidationError:
+      type: object
+      required: [pointer, code, message]
+      properties:
+        pointer: { type: string, description: JSON Pointer or parameter name }
+        code: { type: string }
+        message: { type: string }
+    Problem:
+      type: object
+      additionalProperties: true
+      required: [type, title, status, code]
+      properties:
+        type: { type: string, format: uri-reference }
+        title: { type: string }
+        status: { type: integer, minimum: 400, maximum: 599 }
+        detail: { type: string }
+        instance: { type: string, format: uri-reference }
+        code: { type: string, pattern: '^[A-Z0-9_]+$' }
+        traceId: { type: string }
+        errors: { type: array, items: { $ref: '#/components/schemas/ValidationError' } }
+    DuplicateProblem:
+      allOf:
+        - $ref: '#/components/schemas/Problem'
+        - type: object
+          required: [candidates]
+          properties:
+            candidates: { type: array, items: { $ref: '#/components/schemas/DuplicateCandidate' } }
