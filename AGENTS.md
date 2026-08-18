@@ -13,24 +13,30 @@ Build Rumpun Community as an independent, community-maintained family tree appli
 - Do not add zero-knowledge E2EE or family-archive features such as oral histories, heirloom stories, time capsules, memorial experiences, or commercial-product compatibility.
 - Prefer genealogy records, evidence, interoperability, and self-hostability.
 
-## Technology status
+## Technology baseline
 
-The technology stack is intentionally undecided.
+ADR-0002 selects a modular monolith built with:
 
-Until an accepted ADR chooses a stack, agents must not:
+- PHP 8.3 or newer as required by Laravel 13
+- Laravel 13 as the application framework
+- Filament 5 and Livewire for application panels and interactive server-driven UI
+- PostgreSQL as the authoritative transactional store
+- Composer for PHP dependency management
 
-- scaffold a framework, package manager, database, deployment platform, or monorepo tool
-- add generated lockfiles or framework-specific configuration
-- describe an unapproved technology as selected or planned
-- infer a stack from examples, issue discussions, or personal preference
+Agents must:
 
-Agents may contribute stack-neutral requirements, domain models, test fixtures, interface contracts, threat models, accessibility criteria, and ADR proposals.
+- preserve module boundaries and keep domain rules out of Filament resources, pages, widgets, and Livewire components
+- use Laravel migrations for reviewed schema changes and Eloquent without leaking persistence models into public contracts
+- keep Filament as a delivery layer, not the genealogy domain model
+- avoid adding a separate JavaScript SPA, Node.js backend, microservice, persistent service, or mandatory hosted dependency without an accepted ADR
+- pin compatible dependency ranges and commit reproducible lockfiles when scaffolding begins
+- prefer framework-native capabilities unless another dependency has a documented maintenance and self-hosting case
 
 ## Required workflow
 
-1. Read README.md, CONTRIBUTING.md, ROADMAP.md, and relevant files under docs/.
+1. Read README.md, CONTRIBUTING.md, ROADMAP.md, ADR-0002, and relevant files under docs/.
 2. Confirm the requested change fits PRODUCT_BOUNDARY.md.
-3. For architectural decisions, create an ADR proposal before implementation.
+3. Use an ADR for changes to persistent services, trust boundaries, public contracts, core frameworks, or major operating requirements.
 4. Keep each pull request focused and explain user impact, trade-offs, testing, and documentation changes.
 5. Never weaken licensing, security reporting, privacy, accessibility, or data portability without explicit maintainer approval.
 
@@ -46,6 +52,6 @@ Agents may contribute stack-neutral requirements, domain models, test fixtures, 
 
 ## Definition of done
 
-A change is done when its behavior is documented, tests or reproducible verification are included where applicable, privacy and migration impact are considered, and no proprietary Rumpun dependency has been introduced.
+A change is done when its behavior is documented, automated tests or reproducible verification are included where applicable, migrations and privacy impact are considered, and no proprietary Rumpun dependency has been introduced.
 
 When information is missing, state the gap and propose options. Do not silently guess.

@@ -4,16 +4,18 @@ Thanks for helping build Rumpun Community.
 
 ## Before you start
 
-Read the README, product boundary, architecture principles, roadmap, code of conduct, and AGENTS.md if you use an AI coding tool.
+Read the README, product boundary, architecture principles, roadmap, code of conduct, ADR-0002, and AGENTS.md if you use an AI coding tool.
 
-The stack is not selected. Please do not open framework scaffolding PRs yet. Architecture proposals belong in an ADR issue or a document under `docs/adr/` using the template.
+The initial stack is PHP 8.3+, Laravel 13, Filament 5, Livewire, and PostgreSQL. Keep implementation inside the modular monolith and preserve the dependency boundaries in ADR-0002. A proposal that adds another core framework, persistent service, trust boundary, or mandatory hosted dependency needs an ADR first.
 
 ## Ways to contribute now
 
 - document genealogy edge cases and terminology
 - define GEDCOM interoperability cases and synthetic fixtures
 - improve product requirements and accessibility criteria
-- propose data portability, backup, and self-hosting requirements
+- implement focused Laravel domain and application modules with tests
+- improve Filament interfaces without moving domain rules into UI resources
+- propose data portability, backup, and self-hosting improvements
 - review security and privacy assumptions
 - improve governance, contributor experience, translations, and documentation
 
