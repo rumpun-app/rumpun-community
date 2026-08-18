@@ -14,7 +14,7 @@ body:
     id: outcome
     attributes:
       label: Desired outcome
-      description: Describe behavior without prescribing a stack.
+      description: Describe the user-visible behavior before implementation details.
     validations:
       required: true
   - type: textarea
@@ -24,6 +24,11 @@ body:
       description: Explain why this is genealogy rather than proprietary family-archive functionality.
     validations:
       required: true
+  - type: textarea
+    id: architecture
+    attributes:
+      label: Architecture impact
+      description: Explain how this fits Laravel 13, Filament 5, and the modular monolith in ADR-0002. Flag any new service, trust boundary, or major dependency.
   - type: textarea
     id: alternatives
     attributes:
@@ -35,5 +40,5 @@ body:
       options:
         - label: I searched existing proposals.
           required: true
-        - label: This proposal does not assume an unapproved technology stack.
+        - label: This proposal preserves ADR-0002 or explicitly requests a new ADR.
           required: true

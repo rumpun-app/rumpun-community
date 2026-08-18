@@ -21,7 +21,7 @@ It does not include Rumpun's commercial family-archive features, zero-knowledge 
 
 ## Current status
 
-**Foundation phase.** The product scope is being shaped before implementation begins. The technology stack is intentionally undecided. Proposals must start from requirements and trade-offs, not framework preference.
+**Foundation phase.** The initial application stack is **PHP 8.3+, Laravel 13, Filament 5, Livewire, and PostgreSQL**, organized as a modular monolith. Architecture work and the first vertical slice may proceed under [ADR-0002](docs/adr/0002-initial-application-architecture-and-technology-stack.md).
 
 See [ROADMAP.md](ROADMAP.md), [docs/PRODUCT_BOUNDARY.md](docs/PRODUCT_BOUNDARY.md), and [docs/ARCHITECTURE_PRINCIPLES.md](docs/ARCHITECTURE_PRINCIPLES.md).
 
@@ -29,7 +29,7 @@ See [ROADMAP.md](ROADMAP.md), [docs/PRODUCT_BOUNDARY.md](docs/PRODUCT_BOUNDARY.m
 
 Start with [CONTRIBUTING.md](CONTRIBUTING.md). Automated coding agents must also follow [AGENTS.md](AGENTS.md).
 
-Good first contributions include clarifying genealogy requirements, defining interoperability fixtures, documenting edge cases, reviewing accessibility needs, and proposing architecture through an ADR.
+Good first contributions include clarifying genealogy requirements, defining interoperability fixtures, documenting edge cases, reviewing accessibility needs, and implementing focused Laravel modules with tests.
 
 ## Governance
 
