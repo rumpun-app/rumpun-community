@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+
+jobs:
+  pint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - run: vendor/bin/pint --test
+
+  phpstan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - run: vendor/bin/phpstan analyse --memory-limit=1G
+
+  tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: rumpun_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          extensions: pdo_pgsql, pgsql
+      - run: composer install --no-interaction --prefer-dist
+      - run: cp .env.example .env
+      - run: php artisan key:generate
+      - run: php artisan migrate --force --env=testing
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: rumpun_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+      - run: vendor/bin/pest --ci
+        env:
+          DB_CONNECTION: pgsql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 5432
+          DB_DATABASE: rumpun_test
+          DB_USERNAME: postgres
+          DB_PASSWORD: postgres
+
+  dep-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+      - run: composer install --no-interaction --prefer-dist
+      - name: Check Domain does not import Filament/Livewire/Http
+        run: |
+          set -e
+          if grep -r "use Filament" app/Domain --include="*.php"; then
+            echo "FAIL: Domain must not import Filament"
+            exit 1
+          fi
+          if grep -r "use Livewire" app/Domain --include="*.php"; then
+            echo "FAIL: Domain must not import Livewire"
+            exit 1
+          fi
+          if grep -r "use App\\\\Http" app/Domain --include="*.php"; then
+            echo "FAIL: Domain must not import Http"
+            exit 1
+          fi
+          if grep -r "use Illuminate\\\\Http" app/Domain --include="*.php"; then
+            echo "FAIL: Domain must not import Http"
+            exit 1
+          fi
+          echo "Domain boundary OK"
+
+  fixtures:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Ensure fixtures are synthetic
+        run: |
+          set -e
+          if grep -r -i "real.*family\|personal data" tests/Fixtures --include="*.ged" 2>/dev/null; then
+            echo "FAIL: Fixtures must be synthetic"
+            exit 1
+          fi
+          echo "Fixtures check OK"
+          ls -la tests/Fixtures/ || echo "No fixtures yet — OK for M0"

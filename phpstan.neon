@@ -1,0 +1,9 @@
+parameters:
+  level: 1
+  paths:
+    - app/Domain
+    - app/Application
+  excludePaths:
+    - vendor
+  ignoreErrors:
+    - '#Call to an undefined static method.*::create\(\)#'

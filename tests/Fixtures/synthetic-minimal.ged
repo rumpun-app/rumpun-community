@@ -1,0 +1,16 @@
+0 HEAD
+1 SOUR RumpunCommunity
+1 GEDC
+2 VERS 5.5.1
+2 FORM LINEAGE-LINKED
+1 CHAR UTF-8
+0 @I1@ INDI
+1 NAME Alice /Smith/
+1 SEX F
+0 @I2@ INDI
+1 NAME Bob /Smith/
+1 SEX M
+0 @I3@ INDI
+1 NAME Carol /Smith/
+1 SEX F
+0 TRLR

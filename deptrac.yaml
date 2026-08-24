@@ -1,0 +1,53 @@
+deptrac:
+  paths:
+    - ./app
+  layers:
+    - name: Domain
+      collectors:
+        - type: directory
+          value: app/Domain/.*
+    - name: Application
+      collectors:
+        - type: directory
+          value: app/Application/.*
+    - name: Infrastructure
+      collectors:
+        - type: directory
+          value: app/Infrastructure/.*
+    - name: Filament
+      collectors:
+        - type: directory
+          value: app/Filament/.*
+    - name: Http
+      collectors:
+        - type: directory
+          value: app/Http/.*
+    - name: Policies
+      collectors:
+        - type: directory
+          value: app/Policies/.*
+    - name: Models
+      collectors:
+        - type: directory
+          value: app/Models/.*
+  ruleset:
+    Domain:
+      - Domain
+    Application:
+      - Domain
+      - Infrastructure
+    Infrastructure:
+      - Domain
+    Filament:
+      - Application
+      - Domain
+      - Infrastructure
+      - Models
+    Http:
+      - Application
+      - Domain
+      - Infrastructure
+    Policies:
+      - Infrastructure
+      - Models
+      - Domain
