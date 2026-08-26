@@ -12,5 +12,9 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         Person::factory()->count(5)->create();
+
+        if (app()->environment('local', 'testing')) {
+            $this->call(GenealogySeeder::class);
+        }
     }
 }
