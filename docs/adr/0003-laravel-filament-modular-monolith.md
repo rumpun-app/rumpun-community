@@ -1,13 +1,18 @@
-# ADR-0003: Adopt Laravel 13 and Filament 5 with conventional modular structure
+# ADR-0003: Amend ADR-0002 with Laravel 13, Filament 5, and conventional modular structure
 
-- Status: Accepted
+- Status: Accepted amendment
 - Date: 2026-09-01
 - Deciders: Project maintainer
-- Supersedes: ADR-0002
+- Amends: ADR-0002
+- Amendment scope: application framework, UI framework, runtime topology, repository layout, module structure, framework-specific responsibilities, tooling, operations, and validation stack
 
 ## Context
 
-ADR-0002 proposed a TypeScript monorepo with separate Next.js and Express applications. Before application scaffolding begins, the project has chosen a different implementation direction that reduces the number of runtimes, keeps deployment simple for self-hosters, and makes the codebase approachable to contributors who already understand Laravel.
+ADR-0002 selected a TypeScript monorepo with Next.js as the frontend, Express.js as the backend, PostgreSQL as the primary database, and separate web and API applications. That technology and topology decision is now amended before application scaffolding begins.
+
+Rumpun Community will instead use Laravel 13 and Filament 5 as one conventional Laravel modular monolith. This amendment replaces ADR-0002 wherever it specifies Next.js, Express.js, TypeScript as the application stack, separate frontend and backend runtimes, the `apps/` and `packages/` monorepo layout, Node-specific tooling, or framework-specific testing and operating rules.
+
+ADR-0002 remains authoritative for product and quality requirements not changed here, including the genealogy core, provenance, uncertain and conflicting claims, GEDCOM interoperability, portability, self-hosting, accessibility, localization, secure defaults, safe schema evolution, testing discipline, and community-governed architectural change.
 
 Rumpun Community still requires clear module boundaries. Genealogy, people, relationships, sources, GEDCOM interoperability, access control, and other capabilities must not collapse into an unstructured collection of controllers and models.
 
@@ -15,26 +20,27 @@ At the same time, modularity must not introduce a custom directory convention th
 
 ## Decision drivers
 
+- Replace the provisional Next.js and Express stack with the now-confirmed Laravel stack.
 - Keep the application familiar to Laravel developers.
 - Use one coherent application runtime and deployment unit.
-- Build the operational interface quickly with an established Laravel-native UI framework.
+- Build the application interface quickly with an established Laravel-native UI framework.
 - Preserve explicit capability boundaries inside a modular monolith.
 - Avoid custom module loaders, non-standard application roots, and package-like indirection without evidence that they are needed.
 - Keep self-hosting, migrations, backup, restore, queues, scheduling, and upgrades understandable.
-- Retain first-class support for genealogy data, GEDCOM interoperability, localization, accessibility, security, and automated testing.
+- Retain ADR-0002 requirements for genealogy data, GEDCOM interoperability, portability, localization, accessibility, security, and automated testing.
 - Minimize long-term maintenance cost and contributor onboarding time.
 
 ## Options considered
 
-### 1. Continue with Next.js, Express, and PostgreSQL
+### 1. Retain ADR-0002 without amendment
 
-This retains the architecture proposed by ADR-0002.
+Continue with Next.js, Express.js, TypeScript, PostgreSQL, and separate web and API applications.
 
 **Advantages:** one language across frontend and backend, explicit runtime separation, and a broad TypeScript contributor pool.
 
 **Disadvantages:** two application runtimes, duplicated validation and presentation concerns, more deployment moving parts, and more project-defined backend structure.
 
-Rejected. The project prefers a Laravel-native application with fewer operational components.
+Rejected. The implementation stack is now confirmed as Laravel 13 and Filament 5.
 
 ### 2. Laravel with a third-party modular package and custom `Modules/` tree
 
@@ -58,7 +64,16 @@ Accepted.
 
 ## Decision
 
-Rumpun Community SHALL be implemented as a modular monolith using:
+ADR-0002 is amended as follows:
+
+1. Replace Next.js, Express.js, and the TypeScript application stack with Laravel 13.
+2. Replace the separate frontend and backend applications with one Laravel modular monolith.
+3. Adopt Filament 5 as the primary application UI and operational panel framework.
+4. Replace the custom `apps/`, `packages/`, and `db/` monorepo layout with Laravel's conventional project layout.
+5. Replace Node-specific application, migration, queue, test, and deployment rules with their Laravel-native equivalents defined below.
+6. Keep every product, interoperability, portability, security, accessibility, localization, data-quality, and community-governance requirement from ADR-0002 unless this ADR explicitly changes it.
+
+Rumpun Community SHALL be implemented using:
 
 - **Application framework:** Laravel 13
 - **Application UI and operational panels:** Filament 5
@@ -70,7 +85,7 @@ Exact PHP, Node.js, database, cache, queue, and infrastructure versions SHALL be
 
 ### Conventional structure is mandatory
 
-The project SHALL preserve the directory layout and naming conventions expected in a normal Laravel application. In particular:
+The project SHALL preserve the directory layout and naming conventions expected in a normal Laravel application:
 
 ```text
 /
@@ -122,7 +137,7 @@ Modules are logical capability boundaries, not alternate Laravel applications. I
 - Collaboration and access control
 - Audit and change history
 
-Artifacts remain in their conventional Laravel directories and are grouped with clear namespaces when grouping improves navigation. Examples:
+Artifacts remain in their conventional Laravel directories and are grouped with clear namespaces when grouping improves navigation:
 
 ```text
 app/Actions/People/CreatePerson.php
@@ -194,6 +209,7 @@ Architecture tests SHOULD enforce prohibited dependencies and ensure presentatio
 
 ### Positive
 
+- ADR-0002's durable product and quality requirements survive while its obsolete stack decision is replaced explicitly.
 - The repository looks and behaves like a conventional Laravel application.
 - Laravel developers can contribute without learning a custom module framework.
 - Laravel 13 provides the application, routing, validation, authorization, queues, scheduling, migrations, testing, and operational foundation in one ecosystem.
@@ -210,6 +226,7 @@ Architecture tests SHOULD enforce prohibited dependencies and ensure presentatio
 
 ### Risks and mitigations
 
+- **Conflicting readings of ADR-0002 and ADR-0003:** ADR-0003 wins for every amendment scope listed in its metadata and Decision section.
 - **Fat models, controllers, or Filament resources:** move workflows into focused actions and services, then enforce with review and tests.
 - **Feature boundaries become unclear:** use capability namespaces consistently and maintain a short architecture map.
 - **Filament becomes the domain layer:** reuse application actions and policies from Filament rather than implementing rules in UI classes.
@@ -219,15 +236,15 @@ Architecture tests SHOULD enforce prohibited dependencies and ensure presentatio
 
 ### Migration implications
 
-No production application data exists, so this decision requires no user-data migration.
+No production application data exists, so this amendment requires no user-data migration.
 
-ADR-0002 is superseded. Its Next.js, Express, TypeScript monorepo, separate web/API runtime, and related folder decisions are no longer authoritative. Product requirements that remain relevant, including GEDCOM interoperability, portability, self-hosting, accessibility, localization, secure defaults, provenance, and safe schema evolution, continue to apply.
+ADR-0002 remains part of the decision history and remains authoritative outside the amendment scope. Its Next.js, Express.js, TypeScript application stack, separate web/API runtime, monorepo folders, and related framework-specific decisions are replaced by ADR-0003 and MUST NOT be implemented.
 
 Repository documentation, contributor guidance, development containers, CI, and scaffolding SHALL be updated to reflect Laravel 13, Filament 5, and this conventional modular structure.
 
 ## Validation
 
-The decision is validated by a thin vertical slice that:
+The amendment is validated by a thin vertical slice that:
 
 1. boots a clean Laravel 13 application using documented local and container workflows
 2. loads an authenticated Filament 5 panel
@@ -239,4 +256,4 @@ The decision is validated by a thin vertical slice that:
 8. passes architecture tests for dependency direction and prohibited custom module roots
 9. demonstrates keyboard and screen-reader usability for the critical implemented flow
 
-Revisit this ADR when Laravel 13 or Filament 5 reaches end of support, conventional boundaries repeatedly fail despite enforcement, self-hosting becomes impractical, representative workloads miss agreed targets, or a proposed capability requires a materially different trust or deployment boundary.
+Revisit this amendment when Laravel 13 or Filament 5 reaches end of support, conventional boundaries repeatedly fail despite enforcement, self-hosting becomes impractical, representative workloads miss agreed targets, or a proposed capability requires a materially different trust or deployment boundary.
