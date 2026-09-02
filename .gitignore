@@ -16,3 +16,7 @@ Thumbs.db
 .tmp/
 tmp/
 coverage/
+
+# Vendor
+.vendor/
+vendor/
